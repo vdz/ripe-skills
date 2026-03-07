@@ -1,0 +1,24 @@
+{
+  "name": "ripe-skills",
+  "version": "1.0.0",
+  "author": "Yehuda Katz <gilead.yehuda@gmail.com>",
+  "description": "Claude Code skills for the Ripe Method front-end architecture",
+  "bin": {
+    "ripe-skills": "./cli.js"
+  },
+  "files": [
+    "cli.js",
+    "skills/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ripe-method",
+    "frontend-architecture",
+    "skills"
+  ],
+  "license": "MIT"
+}
