@@ -1,7 +1,7 @@
 {
   "name": "ripe-skills",
-  "version": "1.0.0",
-  "author": "Yehuda Katz <gilead.yehuda@gmail.com>",
+  "version": "1.0.1",
+  "author": "Yehuda Gilead",
   "description": "Claude Code skills for the Ripe Method front-end architecture",
   "bin": {
     "ripe-skills": "./cli.js"
