@@ -7,7 +7,6 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/ripe-skills"><img src="https://img.shields.io/npm/v/ripe-skills?color=A8694B&label=npm" alt="npm version" /></a>
   <a href="https://github.com/vdz/ripe-skills/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a>
-  <a href="#who-uses-react--redux"><img src="https://img.shields.io/badge/used%20by-Netflix%2C%20Uber%2C%20Shopify-purple" alt="Used by" /></a>
 </p>
 
 ---
