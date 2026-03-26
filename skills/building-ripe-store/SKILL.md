@@ -15,12 +15,16 @@ store/
     ├── api/
     │   ├── fetchProducts.ts      # One file per API verb
     │   └── updateProduct.ts
+    ├── __tests__/
+    │   └── products.reducer.test.ts  # Tests in __tests__/ — not alongside source
     ├── types.ts                  # State shape, payload, API interfaces
     ├── products.actions.ts       # createAction definitions
     ├── products.reducer.ts       # Default state + reducer
     ├── products.selectors.ts     # Selector functions (if needed)
     └── products.listener.ts     # Business logic (exports Listener[])
 ```
+
+**Test file location:** Always in a `__tests__/` subdirectory within the module folder. Never alongside source files. Imports use `../` to reach the parent. This applies to store slices, modules, and lib utilities alike.
 
 Root store files:
 ```
@@ -386,6 +390,7 @@ Store Branch Progress:
 - [ ] Create [feature].reducer.ts: defaultState + simple assignment cases
 - [ ] Create api/[verb][Feature].ts: fetch + format response if needed
 - [ ] Create [feature].listener.ts: export Listener[] with business logic + error handling
+- [ ] Create __tests__/[feature].reducer.test.ts: test state transitions
 - [ ] Register reducer in store.ts configureStore
 - [ ] Register listener array in listener.ts initAppListeners
 - [ ] Verify: reducer has no if statements or API calls

@@ -68,6 +68,11 @@ Work through these in order. Mark each as done before moving to the next.
 ### Modules
 - [ ] `src/modules/.gitkeep` — empty file, just create it
 
+### Context & Progress
+- [ ] `CLAUDE.md` — see claude-md-template.md
+- [ ] `PROGRESS.md` — initial task board (empty table, 5-7 slots)
+- [ ] `TASK-ARCHIVE.md` — initial archive (header only)
+
 ---
 
 ## After Creating All Files
@@ -75,7 +80,7 @@ Work through these in order. Mark each as done before moving to the next.
 Tell the user:
 
 ```
-✅ Scaffold complete. To start:
+Scaffold complete. To start:
 
   npm install
   npm run dev
@@ -89,3 +94,6 @@ To add a feature branch + component, use these skills in order:
 
 To configure routing for new pages:
 - `building-ripe-routing` — add routes and preemptive hydration
+
+For task lifecycle, session handoff, and quality enforcement:
+- `maintaining-ripe-projects` — CLAUDE.md freshness, PROGRESS.md, TASK-ARCHIVE.md, subagent dispatch, skill audits

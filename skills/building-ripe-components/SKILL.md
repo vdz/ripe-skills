@@ -12,7 +12,7 @@ Every component is a folder:
 ```
 components/
 └── ProductCard/
-    ├── ProductInternals/     # (optional) Internal components and UI parts 
+    ├── ProductInternals/     # (optional) Internal components
     ├── ProductCard.tsx       # Component logic
     ├── ProductCard.styled.tsx # Styled components
     ├── types.ts              # Component-specific types
@@ -38,7 +38,7 @@ export function ProductCard({ productId }: ProductCardProps) {
   return (
     <ProductCardWrapper>
       <ProductName>{product.name}</ProductName>
-      <PriceTag>{product.price}</PriceTag>
+      <PriceTag>{formatDisplayPrice()}</PriceTag>
     </ProductCardWrapper>
   );
 
@@ -51,156 +51,188 @@ export function ProductCard({ productId }: ProductCardProps) {
 
 **Rules:**
 - Function declaration syntax — never `const Component: React.FC` or arrow functions
-- Function Props: Minimal props will be passed, because components "select" their data from the store.
+- Minimal props — components select their data from the store
 - Setup: hooks and selectors only
-- Early exit: guard clauses, loading/empty/error states — return as soon as possible
+- Early exit: guard clauses, loading/empty/error states
 - Return: semantic styled components ONLY — no raw HTML tags
 - Helpers: defined below the return statement
-- Effect: avoid using effects in components for hydration & API calls. Use them for DOM manipulation only when necessary.
+- No `useEffect` for hydration/API calls. DOM manipulation only when necessary.
 
 ## Types File
 
-`types.ts` lives adjacent to the component:
+Derive from store types rather than duplicating:
 
 ```typescript
-// components/ProductCard/types.ts
 import type { Product } from '@/store/products/types';
 
 export interface ProductCardProps {
-  id: Product['id'];
+  id: Product['id'];  // stays in sync automatically
 }
 ```
 
-Derive from store types rather than duplicating — `Product['id']` stays in sync automatically.
-
 ## JSX Rules
 
-**Only semantic styled components in the return statement. Never use Tailwind CSS or shadcn/ui — all styling is done via styled-components.**
+**Only semantic styled components in return. No Tailwind, no shadcn/ui — all styling via styled-components.**
+
+### The Return Statement Is a Document
+
+The return must read like a **content document**. Names describe **WHAT** the content IS, not **HOW** it's built.
 
 ```typescript
-// ✅ Correct
+// ❌ Wrong — implementation details
 return (
-  <ProductCardWrapper>
-    <ProductImage src={imageUrl} alt={name} />
-    <ProductDetails>
-      <ProductName>{name}</ProductName>
-      <AddToCart onClick={() => dispatch(addToCart(productId))}>
-        {t('add-to-cart')} // `t` is an example of translation function, which is not required for the component to work
-      </AddToCart>
-    </ProductDetails>
-  </ProductCardWrapper>
+  <FieldGroup>
+    <FieldGroupLabel>Digital Tuner</FieldGroupLabel>
+    <RadioGroup value={tunerValue} onChange={handleTunerChange}>
+      <RadioItem value="yes" label="Yes" />
+    </RadioGroup>
+  </FieldGroup>
 );
 
-// ❌ Wrong — raw HTML in return
+// ✅ Correct — semantic names
 return (
-  <div className="card">
-    <img src={product.imageUrl} />
-    <div className="details">
-      <h3>{product.name}</h3>
-      <button onClick={...}>Add</button>
-    </div>
-  </div>
+  <DigitalTunerQuery>
+    <Label>Digital Tuner</Label>
+    <Answers value={tunerValue} onChange={handleTunerChange}>
+      <Answer value="yes">Yes</Answer>
+    </Answers>
+  </DigitalTunerQuery>
 );
 ```
 
-## Styled Components File
+### Two-Level Alias Pattern
 
-Avoid using component props in styled components. Use classes instead.
-Classes both signify the state of the component in debugging, and quicker for rerender.
-When needed classes should be decided upon in components using `classnames` library.
+Shared libs export mid-level names. Each component creates LOCAL aliases in `.styled.tsx`. The return only sees local aliases.
 
-Styled components must be **purely declarative** — no conditionals, no logic, no interpolated functions beyond static theme values. All decisions about appearance belong in the component (via classes), not in the style definition. This keeps styled components "dumb": they describe what things look like, never why.
+```
+Level 1 — Shared library:    StepHeader, StepTitle, StepContent
+Level 2 — .styled.tsx:       export const Header = styled(StepHeader)``;
+Level 3 — Return statement:  <Header>  <Title>  <Content>
+```
+
+- **Per-field wrappers** (`DigitalTunerQuery`) — styled components extending a shared base, in `.styled.tsx`
+- **Shared primitives** (`Label`, `Hint`, `Answers`, `Answer`) — wrap generic primitives, exported from barrels
+- **Domain over implementation** — `AddToCart` not `PrimaryButton`, `Answers` not `RadioGroup`
+
+### Inline Event Handlers
+
+Short single-dispatch lambdas ARE fine in the return:
 
 ```typescript
-// ❌ Wrong - prop-based styling
+// ✅ OK — declarative and clear
+<NextButton onClick={() => dispatch(flowDone())}>Next</NextButton>
+
+// ❌ Unnecessary wrapper for trivial one-liner
+function handleNext() { dispatch(flowDone()); }
+```
+
+Multi-line handlers should be extracted to SETUP.
+
+### Other JSX Rules
+
+- **Tooltips:** Use native `title` attribute, not a `<Tooltip>` wrapper
+- **Visual separators:** CSS (`border-top`) on styled components, not `<Divider />` in JSX
+- **Clickable elements:** Must have `cursor: pointer` in styled definition
+
+## Styled Components
+
+Class-based styling, never prop-based. Styled components are purely declarative — no conditionals or interpolated functions.
+
+```typescript
+// ❌ Wrong — prop-based
 export const AddToCart = styled.button<{ disabled: boolean }>`
   background: ${({ disabled }) => disabled ? colors.muted : colors.primary};
 `;
 
-// ✅ Correct - class-based styling
+// ✅ Correct — class-based
 export const AddToCart = styled.button`
   background: ${colors.primary};
   &.disabled { background: ${colors.muted}; }
 `;
-
-// In the component, use classnames to apply the class:
-// import cn from 'classnames';
-// <AddToCart className={cn({ disabled: isOutOfStock })} />
+// Component uses: <AddToCart className={cn({ disabled: isOutOfStock })} />
 ```
+
+Names describe purpose: `ProductCardWrapper` not `Container`, `AddToCart` not `Button`.
+
+## Composition Over Configuration
+
+**UI structure lives in JSX, not in data.** Declare all children explicitly. Each child self-gates on state.
 
 ```typescript
-// ProductCard.styled.tsx
-import styled from 'styled-components';
-import { colors } from 'styles/theme';
-import { Popup } from '@atomic-component-collection/Popup'; // Example of importing from the atomic component collection
+// ✅ Correct — explicit composition
+function Dashboard() {
+  return (
+    <DashboardLayout>
+      <Header />
+      <RevenuePanel />
+      <OrdersPanel />
+      <InventoryPanel />
+    </DashboardLayout>
+  );
+}
 
-export const ProductCardWrapper = styled.article`
-  display: flex;
-  flex-direction: column;
-  border-radius: 8px;
-`;
+// Each panel gates itself:
+function OrdersPanel() {
+  const visible = useAppSelector(selectOrdersPanelVisible);
+  if (!visible) return null;
+  // ...
+}
 
-export const ProductName = styled.h3`
-  font-size: 1rem;
-  font-weight: 600;
-`;
-
-export const AddToCart = styled.button`
-  background: ${colors.primary};
-  color: white;
-`;
-
-export const ProductQuantityPopup = styled(Popup)`
-  border-radius: 8px;
-  border-color: "salmon";
-`;
+// ❌ Wrong — config-driven rendering
+const panels = [
+  { id: "revenue", component: RevenuePanel },
+  { id: "orders", component: OrdersPanel },
+];
+// ... panels.filter().map()
 ```
 
-Names describe purpose, never generic: `ProductCardWrapper` not `Container`, `AddToCart` not `Button`.
+Use styled-component inheritance for shared visual patterns (`styled(Card)` in step's `.styled.tsx`).
+
+## Clean Return Statement
+
+No logic in JSX. Extract ternaries to helpers, compute `cn()` in SETUP:
+
+```typescript
+// ❌ Ternary in JSX
+<StatusBadge>{isCompleted ? `${label} — done` : label}</StatusBadge>
+
+// ✅ Helper below return
+<StatusBadge>{renderLabel()}</StatusBadge>
+
+// ═══ HELPERS ═══
+function renderLabel() {
+  if (isCompleted) return `${label} — done`;
+  return label;
+}
+```
+
+**Exception:** Simple `{value}` or `{label}` interpolations are fine.
 
 ## Component Behavior Rules
 
-- **Passive and reactive** — only reads from state, dispatches actions
+- **Passive and reactive** — reads state, dispatches actions, nothing else
 - **No business logic** — no API calls, no complex decisions, no `useState` for app data
-- **Dispatch actions** — let listeners handle side effects
-- **`useAppSelector`** for reading state, `useAppDispatch` for dispatching
-- **Navigation is OK** — components can use `useNavigate` for user-initiated navigation and `useParams` for route params
-- **Never trigger data loading** — components do not initiate fetches, hydration, or any data-related side effects. By the time a component renders, the data it needs should already be in the store. If it isn't, the component renders an empty/loading state and waits — it never reaches out to fix it.
-
-```typescript
-// ✅ Dispatch and let listener handle logic
-function Cart() {
-  const handleCheckout = () => dispatch(initiateCheckout());
-  return <CheckoutButton onClick={handleCheckout}>{t('checkout')}</CheckoutButton>;
-}
-
-// ❌ Component doing listener's job
-function Cart() {
-  const handleCheckout = async () => {
-    const order = await api.createOrder(items);
-    await api.processPayment(order.id);
-    router.push('/confirmation');
-  };
-}
-```
+- **Never trigger data loading** — data should already be in the store when rendering
+- **Navigation is OK** — `useNavigate` for user actions, `useParams` for route params
 
 ## Workflow Checklist
 
 ```
-Component Creation Progress:
 - [ ] Create folder: components/ComponentName/
-- [ ] Create ComponentName.tsx with function declaration
-- [ ] Add SETUP, EARLY EXIT, RETURN, HELPERS sections
-- [ ] Create ComponentName.styled.tsx with semantic names
-- [ ] Create types.ts adjacent to component
-- [ ] Create index.ts with single re-export
-- [ ] Verify: no raw HTML tags in return
-- [ ] Verify: no business logic in component
-- [ ] Verify: file is ~100 lines or under
+- [ ] ComponentName.tsx with SETUP → EARLY EXIT → RETURN → HELPERS
+- [ ] ComponentName.styled.tsx with semantic names + two-level aliases
+- [ ] types.ts derived from store types
+- [ ] index.ts with single re-export
+- [ ] Return reads as content document (no implementation primitives)
+- [ ] No raw HTML, no ternaries, no inline cn() in return
+- [ ] Styled components use classes, not props
+- [ ] No useEffect for data loading
+- [ ] File is ~100 lines or under
+- [ ] Tests in __tests__/ subdirectory
 ```
 
-**Import aliasing:** Use `@` as alias for `src/` in all imports (e.g., `@/store/products/types`, `@/components/Shared`).
+**Import aliasing:** Use `@` for `src/` (e.g., `@/store/products/types`).
 
-**For detailed patterns and before/after examples**: See [patterns.md](patterns.md)
-**For styled component naming conventions**: See [styled.md](styled.md)
-**For routing and navigation**: See building-ripe-routing skill
+**For detailed patterns**: See [patterns.md](patterns.md)
+**For styled naming conventions**: See [styled.md](styled.md)
+**For routing**: See building-ripe-routing skill

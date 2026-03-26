@@ -29,7 +29,7 @@ Replace `PROJECT_NAME` with the actual project name before writing.
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "typescript": "^5.5.0",
-    "vite": "^5.4.0"
+    "vite": "^7.3.1"
   }
 }
 ```
