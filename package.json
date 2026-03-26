@@ -1,8 +1,13 @@
 {
   "name": "ripe-skills",
   "version": "2.0.0",
-  "author": "Yehuda Gilead",
-  "description": "Claude Code skills for the Ripe Method front-end architecture",
+  "author": "Yehuda Gilead (https://github.com/vdz)",
+  "description": "Claude Code skills for The Ripe Method — a front-end architecture for building maintainable React + Redux Toolkit applications in the agentic age",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vdz/ripe-skills"
+  },
+  "homepage": "https://github.com/vdz/ripe-skills#readme",
   "bin": {
     "ripe-skills": "./cli.js"
   },
@@ -14,11 +19,17 @@
     "node": ">=18"
   },
   "keywords": [
-    "claude",
     "claude-code",
+    "claude-skills",
     "ripe-method",
     "frontend-architecture",
-    "skills"
+    "react",
+    "redux-toolkit",
+    "agentic-coding",
+    "ai-coding",
+    "state-management",
+    "listener-middleware",
+    "styled-components"
   ],
   "license": "MIT"
 }

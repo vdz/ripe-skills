@@ -1,38 +1,155 @@
-# ripe-skills
+<p align="center">
+  <img src="ripe-architecture-docs/media/ripe-title.jpg" alt="The Ripe Method" width="600" />
+</p>
 
-Claude Code skills for **The Ripe Method** — a front-end architecture for building robust, maintainable web applications with React + Redux Toolkit.
+<h3 align="center">The front-end architecture that makes you want to write more code.</h3>
 
-Install once and Claude knows how to scaffold projects, build store branches, create components, set up routing, and maintain project context across sessions.
+<p align="center">
+  <a href="https://www.npmjs.com/package/ripe-skills"><img src="https://img.shields.io/npm/v/ripe-skills?color=A8694B&label=npm" alt="npm version" /></a>
+  <a href="https://github.com/vdz/ripe-skills/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a>
+  <a href="#who-uses-react--redux"><img src="https://img.shields.io/badge/used%20by-Netflix%2C%20Uber%2C%20Shopify-purple" alt="Used by" /></a>
+</p>
 
-## Install
+---
+
+## The Problem
+
+Every front-end codebase hits a wall. New features get harder. Onboarding takes longer. The 10th developer adds code the 1st developer can't recognize. AI agents produce code that *works* but doesn't *fit*.
+
+**The Ripe Method fixes this.** It's a front-end architecture where functional complexity grows with your product, but technical complexity stays flat.
+
+```
+Functional complexity:  ↗ growing with features — that's expected
+Technical complexity:   → flat forever — that's the architecture
+```
+
+<p align="center">
+  <img src="ripe-architecture-docs/media/ripe-simple-is-key.jpeg" alt="Simple is key" width="400" />
+</p>
+
+---
+
+## What is The Ripe Method?
+
+A complete front-end architecture for **React + Redux Toolkit** that enforces strict separation of concerns across three layers:
+
+<p align="center">
+  <img src="ripe-architecture-docs/media/ripe-three-layers.jpeg" alt="Three layers: Store, Business Logic, View" width="500" />
+</p>
+
+| Layer | What it does | What it never does |
+|-------|-------------|-------------------|
+| **Store** | Holds state, defines actions, simple reducers | Logic, API calls, decisions |
+| **Business Logic** | Listeners orchestrate: API calls, decisions, side effects | Rendering, direct state mutation |
+| **View** | Renders UI, dispatches actions | Logic, API calls, state management |
+
+The rule: **push complexity inward.** The View is dumb. The Reducers are dumb. All the thinking happens in Listeners.
+
+<p align="center">
+  <img src="ripe-architecture-docs/media/ripe-info-cycle.jpeg" alt="Application Information Cycle" width="550" />
+</p>
+
+---
+
+## Why Ripe?
+
+### Battle-tested at scale
+
+Born inside a B2C company that grew from 90 to 900+ developers. Dozens of client-facing applications — retail management, logistics, self-help portals, mobile — all built on the same architecture. The method survived 10x team scaling while keeping code complexity a plateau.
+
+### Built for the agentic age
+
+In 2026, we don't just write code — we orchestrate AI agents that write code. The Ripe Method is structured so that an LLM with a context window can navigate, understand, and generate code that fits. Every component, every store branch, every listener follows the same patterns. No tribal knowledge. No "you had to be there."
+
+### Maintenance is 95% of the game
+
+<p align="center">
+  <img src="ripe-architecture-docs/media/ripe-maintenance.jpeg" alt="Maintenance is 95% of software's lifecycle" width="450" />
+</p>
+
+Every architectural decision is evaluated through one lens: *will this make maintenance easier or harder?* Ripe optimizes for the 95% of a product's life spent maintaining, extending, and evolving — not the 5% spent in greenfield excitement.
+
+### The 16 Elements
+
+<p align="center">
+  <img src="ripe-architecture-docs/media/ripe-elements.jpeg" alt="The 16 Elements of the Ripe Architecture" width="500" />
+</p>
+
+<details>
+<summary><strong>Expand to see all 16 elements</strong></summary>
+
+| Category | Element | What it means |
+|----------|---------|---------------|
+| **State** | Application Scope | Every feature belongs to a defined scope with clear boundaries |
+| | Immutable State | Never mutate state directly — create new versions |
+| | Global State Only | One source of truth: the global store |
+| **Code Style** | Declarative Code | Describe *what* you want, not *how* to get it |
+| | Written For Humans | Optimize for readability — clear names, short functions |
+| | Short Files | ~100 lines per file. Longer? Split it |
+| **Structure** | Uniform Structures | Similar things look similar — same shape everywhere |
+| | Fixed File Structure | Same folder layout, every project. Navigate blindfolded |
+| | Loose Coupling | Modules depend on abstractions, not implementations |
+| **Data Flow** | Unidirectional Flow | Action → Reducer → State → View. Never backwards |
+| | Reactive View | The view reacts to state. It doesn't fetch or decide |
+| | Event Driven | User interactions trigger actions that describe what happened |
+| **Logic** | Isolated Business Logic | All logic lives in listeners. Not scattered across components |
+| | Composition Over Configuration | Build complex features by combining simple pieces in JSX |
+| | Quick Start Ready | Clone, install, run. No tribal knowledge required |
+| **Vocabulary** | Application Vocabulary | Actions are the feature spec — reading them tells you what the app does |
+
+</details>
+
+---
+
+## Quick Start
 
 ```sh
 npx ripe-skills
 ```
 
-All skills are copied into `~/.claude/skills/`. Restart Claude Code to activate them.
+That's it. All skills are installed into `~/.claude/skills/`. Claude Code knows how to build Ripe apps.
 
-## Commands
+### Your first Ripe app
+
+```sh
+# Start a new project
+claude
+> /ripe-init
+
+# Add a feature
+> "Create a products store branch with fetch, success, and failure actions"
+> "Create a ProductCard component that reads from the products store"
+> "Add a /products route with preemptive hydration"
+```
+
+Claude follows the Ripe skills automatically — correct file structure, correct patterns, correct separation of concerns.
+
+### Commands
 
 ```sh
 npx ripe-skills                    # Install all skills
 npx ripe-skills add <skill-name>   # Install a single skill
-npx ripe-skills list               # List available skills and install status
+npx ripe-skills list               # Show available skills + install status
 ```
 
-## Skills
+---
 
-| Skill | What It Does | When Claude Uses It |
+## The Skills
+
+Five skills that teach Claude Code the complete Ripe architecture:
+
+| Skill | Lines | What Claude Learns |
 |---|---|---|
-| `ripe-init` | Scaffolds a new Ripe project (Vite, TS, Redux, routing, CLAUDE.md) | Starting a new project |
-| `building-ripe-store` | Creates store branches: actions, reducers, listeners, API functions | Adding state management |
-| `building-ripe-components` | Creates components: semantic TSX, two-level aliases, styled-components | Building UI |
-| `building-ripe-routing` | Sets up React Router with `setLocation` bridge and preemptive hydration | Adding routes and navigation |
-| `maintaining-ripe-projects` | Session lifecycle, PROGRESS.md, TASK-ARCHIVE.md, subagent dispatch, hooks | Starting/resuming sessions, dispatching agents, auditing code |
+| **`ripe-init`** | 99 | Scaffold a new project: Vite, TypeScript, Redux store, routing, CLAUDE.md |
+| **`building-ripe-store`** | 405 | Store branches: actions, reducers, listeners, API functions, dual-structure state |
+| **`building-ripe-components`** | 238 | Component anatomy, semantic TSX, two-level aliases, styled-components, composition |
+| **`building-ripe-routing`** | 263 | React Router + `setLocation` bridge, preemptive hydration via listeners |
+| **`maintaining-ripe-projects`** | 195 | Session lifecycle, task tracking, subagent dispatch, quality hooks, learning system |
 
-### Skill Architecture
+Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/best-practices) — all SKILL.md files under 500 lines. Reference material uses progressive disclosure (loaded only when needed):
 
-Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/best-practices) for progressive disclosure. Each SKILL.md stays under 500 lines. Reference material lives in separate files loaded only when needed:
+<details>
+<summary><strong>Full skill architecture</strong></summary>
 
 ```
 maintaining-ripe-projects/
@@ -62,36 +179,81 @@ ripe-init/
   app-templates.md                    App + routing templates
 ```
 
-## Key Concepts
+</details>
 
-**The Ripe Method** enforces strict separation of concerns:
+---
 
-- **Components** are passive — read from store, dispatch actions, no business logic
-- **Reducers** do simple assignment — no `if` statements, no API calls
-- **Listeners** orchestrate everything — react to actions, call decision functions, make API calls
-- **Decision functions** are pure — no Redux, independently testable
+## The Agentic Layer
 
-**The Agentic Layer** (`maintaining-ripe-projects`) adds:
+The `maintaining-ripe-projects` skill adds a self-improving workflow on top of the architecture:
 
-- **PROGRESS.md** — rolling 5-7 task board with automatic archiving
-- **TASK-ARCHIVE.md** — project-permanent learning corpus with per-task takeaways
-- **Task Completion Flow** — mandatory reflect-archive-trim-backfill cycle
-- **Improvement Scan** — session-end triage routing learnings to skills, CLAUDE.md, hooks, or memory
-
-## Updating
-
-Re-run the install command. Skills are overwritten in place.
-
-```sh
-npx ripe-skills
+```
+Complete task → Reflect (takeaway) → Archive to TASK-ARCHIVE.md
+                                          ↓
+                            Session-end Improvement Scan
+                                          ↓
+                            Route to: skill update | CLAUDE.md fix
+                                      hook addition | feedback memory
 ```
 
-## What is the Ripe Method?
+- **PROGRESS.md** — rolling board of 5–7 active tasks, automatically archived when done
+- **TASK-ARCHIVE.md** — project-permanent learning corpus with metadata per task (operator, model, outcome, takeaway)
+- **Task Completion Flow** — mandatory reflect → archive → trim → backfill cycle
+- **Improvement Scan** — session-end triage that routes learnings into concrete improvements
+- **Quality hooks** — automated typecheck gates, PROGRESS.md reminders, archive enforcement
 
-The Ripe Method is a front-end architecture for React + Redux Toolkit that enforces consistent patterns for state management with listener middleware, component structure, and routing.
+The archive is the flywheel: tasks generate takeaways, takeaways reveal patterns, patterns become improvements, improvements prevent future issues.
 
-Learn more: [the-ripe-architecture](https://github.com/vdz/the-ripe-architecture)
+---
+
+## Why This Tech Stack?
+
+| Choice | Why |
+|--------|-----|
+| **React** | The dominant UI library. 3M+ weekly npm downloads. Massive ecosystem, talent pool, and tooling |
+| **Redux Toolkit** | Predictable state management with a complete information cycle. Time-travel debugging. The most *predictable* tool — and predictability matters when half your team is AI agents |
+| **Listener Middleware** | RTK's built-in replacement for thunks/sagas. Listeners react to any action, run async logic, and dispatch results. No extra dependencies |
+| **styled-components** | Co-located styles with full CSS power. Class-based state styling. No Tailwind utility soup in your semantic JSX |
+| **Vite** | Sub-second HMR. Native ESM. The build tool that doesn't make you wait |
+| **TypeScript** | Strict mode. Types are documentation that the compiler enforces |
+| **Vitest** | Vite-native testing. Fast, compatible with Jest APIs, zero config |
+
+### Who uses React + Redux?
+
+This isn't a niche stack. It's battle-tested at the largest scale:
+
+- **Netflix** — Redux + redux-observable for concurrent async streams across their web UI
+- **Uber** — Built Fusion.js, an entire framework with Redux as a first-class citizen. Hundreds of internal apps
+- **Shopify** — Migrated their POS app from vanilla Redux to Redux Toolkit. Published a detailed case study
+- **Airbnb** — Redux for committed/shared state, React state for ephemeral UI interactions
+- **Twitter/X** — Normalized entity store with ID-based relationships across timelines
+- **Dropbox** — Built the Rondo Framework on top of Redux to solve type-safe code splitting
+
+---
+
+## One More Thing
+
+### Why "Ripe"?
+
+Because the architecture is *ready*. Not green, not overcooked — ripe. Ready to be picked up and used. Ready to grow. Ready for whatever comes next.
+
+The Ripe Method doesn't fight the future. It embraces it. When AI agents became the new team members in 2025, Ripe codebases were already structured for them — predictable, navigable, and simple enough that a fresh context window produces correct code on the first try.
+
+That's not an accident. That's what happens when you optimize for maintenance from day one.
+
+---
+
+## Learn More
+
+- **[The Ripe Method — Full Guide](ripe-architecture-docs/the-ripe-method.md)** — the complete architecture document with diagrams and examples
+- **[the-ripe-architecture](https://github.com/vdz/the-ripe-architecture)** — the architecture repo
 
 ## License
 
 MIT
+
+---
+
+<p align="center">
+  <em>Created by <a href="https://github.com/vdz">Yehuda Gilead</a> | 2026</em>
+</p>
