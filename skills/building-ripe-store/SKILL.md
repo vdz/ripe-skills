@@ -103,12 +103,27 @@ const listeners: Listener[][] = [
   uiListener,
 ];
 
+type StartListeningArg = Parameters<typeof startAppListening>[0];
+
+/**
+ * Registers all listeners with the RTK listener middleware and returns it
+ * for use in configureStore's middleware chain.
+ *
+ * Each feature exports its own `listener` array (e.g. appListener, shopListener).
+ * This function flattens them into a single registration pass so the store
+ * setup stays declarative — features declare WHAT they react to, this function
+ * wires them up.
+ *
+ * The cast to StartListeningArg bridges our generic Listener interface with
+ * RTK's stricter typed overloads. Each listener's effect is only called for
+ * its registered action, so the cast is safe.
+ */
 export function initAppListeners() {
-  listeners.forEach((listener) => {
-    listener.forEach((logic) => {
-      startAppListening(logic as any);
-    });
-  });
+  for (const group of listeners) {
+    for (const listener of group) {
+      startAppListening(listener as StartListeningArg);
+    }
+  }
   return listenerMiddleware;
 }
 ```
@@ -161,7 +176,7 @@ export interface ProductsState {
   byId: Record<string, Product>; // O(1) lookup
 }
 
-// Payload interfaces — one per action
+// Payload interfaces — one per action that carries data
 export interface FetchProductsSuccessPayload {
   items: string[];
   byId: Record<string, Product>;
@@ -171,6 +186,34 @@ export interface FetchProductsFailurePayload {
   error: string;
 }
 ```
+
+## Action Payload Rules (CRITICAL)
+
+**Every action payload MUST be an `interface` with named fields, defined in `types.ts`.**
+
+This is non-negotiable — even for single-value payloads:
+
+```typescript
+// WRONG — bare type alias, inline primitive
+export type SetRanResultPayload = string;
+dispatch(setRanResult("RAN-12345"));
+// at the call site: what IS that string?
+
+// RIGHT — interface with named field
+export interface SetRanResultPayload {
+  ranCode: string;
+}
+dispatch(setRanResult({ ranCode: "RAN-12345" }));
+// self-documenting at every call site
+```
+
+**Why this matters:**
+- Dispatch sites read as data documents: `{ ranCode }` not a mystery string
+- Adding a second field later doesn't change the structure
+- Reducers read `action.payload.ranCode` — clear what's being assigned
+- Consistent pattern means no judgment calls about "is this simple enough to inline?"
+
+**The rule:** If an action carries data, it has an interface in `types.ts`. No `type X = string`. No `createAction<string>(...)`. No exceptions.
 
 ## Actions File
 
