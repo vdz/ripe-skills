@@ -103,19 +103,28 @@ Every architectural decision is evaluated through one lens: *will this make main
 ## Quick Start
 
 ```sh
-npx ripe-skills
+npx ripe-skills          # install all skills
+npx ripe-skills hooks    # install global quality gate hooks
 ```
 
-That's it. All skills are installed into `~/.claude/skills/`. Claude Code knows how to build Ripe apps.
+That's it. Skills are in `~/.claude/skills/`, hooks enforce typecheck gates and PROGRESS.md hygiene. Claude Code knows how to build Ripe apps.
+
+### Per-project hooks (optional)
+
+From your project root:
+
+```sh
+npx ripe-skills hooks --local
+```
+
+Installs per-project hooks (typecheck on every `.ts/.tsx` edit, PROGRESS.md smart guard) into `.claude/settings.json`.
 
 ### Your first Ripe app
 
 ```sh
-# Start a new project
 claude
 > /ripe-init
 
-# Add a feature
 > "Create a products store branch with fetch, success, and failure actions"
 > "Create a ProductCard component that reads from the products store"
 > "Add a /products route with preemptive hydration"
@@ -129,6 +138,9 @@ Claude follows the Ripe skills automatically — correct file structure, correct
 npx ripe-skills                    # Install all skills
 npx ripe-skills add <skill-name>   # Install a single skill
 npx ripe-skills list               # Show available skills + install status
+npx ripe-skills hooks              # Install global quality gate hooks
+npx ripe-skills hooks --local      # Install per-project hooks
+npx ripe-skills hooks --all        # Install both global and per-project
 ```
 
 ---
@@ -143,7 +155,7 @@ Five skills that teach Claude Code the complete Ripe architecture:
 | **`building-ripe-store`** | 405 | Store branches: actions, reducers, listeners, API functions, dual-structure state |
 | **`building-ripe-components`** | 238 | Component anatomy, semantic TSX, two-level aliases, styled-components, composition |
 | **`building-ripe-routing`** | 263 | React Router + `setLocation` bridge, preemptive hydration via listeners |
-| **`maintaining-ripe-projects`** | 195 | Session lifecycle, task tracking, subagent dispatch, quality hooks, learning system |
+| **`maintaining-ripe-projects`** | 214 | Session lifecycle, task tracking, subagent dispatch, quality hooks, learning system |
 
 Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/best-practices) — all SKILL.md files under 500 lines. Reference material uses progressive disclosure (loaded only when needed):
 
@@ -152,7 +164,7 @@ Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/ag
 
 ```
 maintaining-ripe-projects/
-  SKILL.md                 195 lines  Core workflows
+  SKILL.md                 214 lines  Core workflows
   dispatch-protocol.md                Subagent dispatch rules
   hooks-reference.md                  Hook configurations
   audit-checklist.md                  Ripe audit checklist
