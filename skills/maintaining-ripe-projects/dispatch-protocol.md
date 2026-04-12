@@ -108,14 +108,13 @@ After a subagent completes a task, review in two passes:
 
 ### Pass 2: Code Quality (Ripe Audit)
 
-Use [audit-checklist.md](audit-checklist.md) for the full checklist. Key checks:
+**Default:** Dispatch the `superpowers:code-reviewer` agent with this context:
+1. The [audit-checklist.md](audit-checklist.md) content
+2. The relevant Ripe skill content — load `building-ripe-components`, `building-ripe-store`, and/or `building-ripe-routing` depending on which layers the task touched
 
-- Reducers: simple assignment only, no logic?
-- Listeners: all business logic here?
-- Components: passive, no useEffect for data?
-- TSX return: semantic names only?
+The audit checklist is a quick-scan summary; the skills are the authoritative spec for code patterns, styling, naming, and structure.
 
-If either pass fails, dispatch a fix agent with specific issues — don't re-do the whole task.
+If Pass 1 or Pass 2 fails, dispatch a fix agent with specific issues — don't re-do the whole task.
 
 ### Checkpoint Reviews for Long Tasks
 
