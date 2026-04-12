@@ -1,5 +1,7 @@
 # Ripe Audit Checklist
 
+> **Preferred method:** Dispatch `superpowers:code-reviewer` agent with this checklist + the relevant Ripe skills (`building-ripe-components`, `building-ripe-store`, `building-ripe-routing`) as context. The checklist below is the quick-scan summary; the skills are the authoritative spec.
+
 Use during Pass 2 of the two-stage review cycle. See [dispatch-protocol.md](dispatch-protocol.md) for the full review process.
 
 ## Store (`building-ripe-store`)
