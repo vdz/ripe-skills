@@ -46,6 +46,7 @@ For the full CLAUDE.md scaffold, see `ripe-init` skill's [claude-md-template.md]
 | "Progress & Documents" links broken | Fix paths |
 | Architecture missing a new pattern | Describe it |
 | Build commands changed | Update |
+| TASK-ARCHIVE.md linked but file missing | Create empty TASK-ARCHIVE.md with header |
 
 **When to update:** After structural changes (new files, new patterns, build changes). Not after every commit.
 
@@ -116,21 +117,33 @@ Each completed task gets:
 6. COMMIT — both PROGRESS.md and TASK-ARCHIVE.md
 ```
 
-### Improvement Scan (Session End)
+---
 
-TASK-ARCHIVE.md is the **single intake** for all learnings. The scan **routes** each takeaway:
+## Learning Routing
+
+TASK-ARCHIVE.md is the **single intake** for all learnings. Every takeaway from the Task Completion Flow gets routed through this table:
 
 ```
-DESTINATION              │ WHEN TO USE
-─────────────────────────┼──────────────────────────────────────
-Skill update             │ Pattern applies to ALL Ripe projects
-CLAUDE.md fix            │ Learning specific to THIS project
-Hook addition            │ Enforcement can be automated
-Feedback memory          │ Cross-project user preference
-No action                │ One-off, not a pattern
+DESTINATION              │ WHEN TO USE                              │ HOW TO EXECUTE
+─────────────────────────┼──────────────────────────────────────────┼──────────────────────────────────────────────
+Skill update             │ Pattern applies to ALL Ripe projects     │ Invoke `writing-skills` skill (see example below)
+CLAUDE.md fix            │ Learning specific to THIS project        │ Edit CLAUDE.md directly
+Hook addition            │ Enforcement can be automated             │ Update hooks-reference.md + install via CLI
+Feedback memory          │ Cross-project user preference             │ Save to Claude Code memory system
+No action                │ One-off, not a pattern                   │ —
 ```
 
 Feedback memories are a **promotion** from the archive — only learnings that transcend the current project.
+
+### Skill Update Example
+
+When the routing table points to "Skill update", invoke the `writing-skills` skill with:
+- **Target file** — which skill file to change
+- **What to change** — the specific rule, pattern, or instruction to add/modify
+- **Why** — the takeaway that motivated it
+
+Example invocation:
+> "In `maintaining-ripe-projects/hooks-reference.md`, add a staleness signal for TASK-ARCHIVE.md referenced in CLAUDE.md but missing from disk. Reason: fresh clones fail silently when the archive file doesn't exist yet."
 
 ---
 
@@ -140,14 +153,20 @@ Feedback memories are a **promotion** from the archive — only learnings that t
 
 ```
 1. Read CLAUDE.md — architecture, contracts, conventions
-2. Read PROGRESS.md — where we left off (5-7 active tasks)
-3. Read TASK-ARCHIVE.md (recent entries) — learn from past tasks
+2. Dispatch sub-agent to run tests + type-check (non-blocking)
+3. Read PROGRESS.md — where we left off (5-7 active tasks)
 4. Read the plan — full scope, what's next
-5. Run tests + type-check — confirm green baseline
+5. Review test baseline report from sub-agent
 6. Identify next task from PROGRESS.md
 ```
 
-If tests or type-check fail, fix before starting new work.
+The test sub-agent runs in parallel while you read context. It reports:
+- Pass/fail counts
+- Which test files are failing
+
+This is **informational, not a hard blocker** — mid-development tests may be legitimately failing. The orchestrator uses PROGRESS.md context (which tasks are in-progress) to judge whether failures are expected TDD red or regressions.
+
+If the test report shows unexpected failures (not covered by in-progress tasks), investigate before starting new work.
 
 ### Mid-Session (After Each Task)
 
@@ -163,7 +182,7 @@ If tests or type-check fail, fix before starting new work.
 1. Run full test suite + type-check — confirm clean
 2. Verify PROGRESS.md — all statuses current
 3. Update CLAUDE.md — if structural changes were made
-4. Run Improvement Scan on TASK-ARCHIVE.md
+4. Run Learning Routing scan on TASK-ARCHIVE.md (see Learning Routing section)
 5. Commit everything
 ```
 
