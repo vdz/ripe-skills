@@ -35,7 +35,7 @@ read -r -d '' GLOBAL_STOP_TYPECHECK << 'HOOKS_EOF' || true
   "hooks": [
     {
       "type": "command",
-      "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; if [ -f \"$ROOT/tsconfig.json\" ]; then cd \"$ROOT\" && ERRORS=$(npx tsc --noEmit 2>&1); if [ $? -ne 0 ]; then echo \"$ERRORS\" | tail -10; echo \"{\\\"systemMessage\\\": \\\"Typecheck failed — fix before ending session.\\\"}\"; exit 2; fi; fi'"
+      "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; if [ -f \"$ROOT/tsconfig.json\" ]; then cd \"$ROOT\" && TS_CHANGED=$(git diff --name-only HEAD 2>/dev/null | grep -E \"\\.(ts|tsx)$\" | head -1); if [ -z \"$TS_CHANGED\" ]; then TS_CHANGED=$(git diff --name-only 2>/dev/null | grep -E \"\\.(ts|tsx)$\" | head -1); fi; if [ -n \"$TS_CHANGED\" ]; then ERRORS=$(npx tsc --noEmit 2>&1); if [ $? -ne 0 ]; then echo \"$ERRORS\" | tail -10; echo \"{\\\"systemMessage\\\": \\\"Typecheck failed — fix before ending session.\\\"}\"; exit 2; fi; fi; fi'"
     }
   ]
 }
