@@ -62,8 +62,6 @@ src/
 - `building-ripe-store` — slices, actions, reducers, listeners, API functions
 - `building-ripe-components` — component anatomy, semantic TSX, two-level aliases
 - `building-ripe-routing` — React Router + setLocation bridge
-- `maintaining-ripe-projects` — task lifecycle, PROGRESS.md, TASK-ARCHIVE.md, session checklists.
-  **ALWAYS follow the Task Completion Flow when marking tasks done.**
 
 ## Build & Dev
 ```bash

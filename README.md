@@ -135,7 +135,7 @@ npx ripe-skills list               # Show available skills + install status
 
 ## The Skills
 
-Five skills that teach Claude Code the complete Ripe architecture:
+Four skills that teach Claude Code the complete Ripe architecture:
 
 | Skill | Lines | What Claude Learns |
 |---|---|---|
@@ -143,7 +143,6 @@ Five skills that teach Claude Code the complete Ripe architecture:
 | **`building-ripe-store`** | 405 | Store branches: actions, reducers, listeners, API functions, dual-structure state |
 | **`building-ripe-components`** | 238 | Component anatomy, semantic TSX, two-level aliases, styled-components, composition |
 | **`building-ripe-routing`** | 263 | React Router + `setLocation` bridge, preemptive hydration via listeners |
-| **`maintaining-ripe-projects`** | 195 | Session lifecycle, task tracking, subagent dispatch, quality hooks, learning system |
 
 Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/best-practices) — all SKILL.md files under 500 lines. Reference material uses progressive disclosure (loaded only when needed):
 
@@ -151,12 +150,6 @@ Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/ag
 <summary><strong>Full skill architecture</strong></summary>
 
 ```
-maintaining-ripe-projects/
-  SKILL.md                 195 lines  Core workflows
-  dispatch-protocol.md                Subagent dispatch rules
-  hooks-reference.md                  Hook configurations
-  audit-checklist.md                  Ripe audit checklist
-
 building-ripe-components/
   SKILL.md                 238 lines  Component patterns
   patterns.md                         Before/after examples
@@ -179,29 +172,6 @@ ripe-init/
 ```
 
 </details>
-
----
-
-## The Agentic Layer
-
-The `maintaining-ripe-projects` skill adds a self-improving workflow on top of the architecture:
-
-```
-Complete task → Reflect (takeaway) → Archive to TASK-ARCHIVE.md
-                                          ↓
-                            Session-end Improvement Scan
-                                          ↓
-                            Route to: skill update | CLAUDE.md fix
-                                      hook addition | feedback memory
-```
-
-- **PROGRESS.md** — rolling board of 5–7 active tasks, automatically archived when done
-- **TASK-ARCHIVE.md** — project-permanent learning corpus with metadata per task (operator, model, outcome, takeaway)
-- **Task Completion Flow** — mandatory reflect → archive → trim → backfill cycle
-- **Improvement Scan** — session-end triage that routes learnings into concrete improvements
-- **Quality hooks** — automated typecheck gates, PROGRESS.md reminders, archive enforcement
-
-The archive is the flywheel: tasks generate takeaways, takeaways reveal patterns, patterns become improvements, improvements prevent future issues.
 
 ---
 

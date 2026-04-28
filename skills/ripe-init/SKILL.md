@@ -94,6 +94,3 @@ To add a feature branch + component, use these skills in order:
 
 To configure routing for new pages:
 - `building-ripe-routing` — add routes and preemptive hydration
-
-For task lifecycle, session handoff, and quality enforcement:
-- `maintaining-ripe-projects` — CLAUDE.md freshness, PROGRESS.md, TASK-ARCHIVE.md, subagent dispatch, skill audits
