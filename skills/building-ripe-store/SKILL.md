@@ -5,6 +5,30 @@ description: Creates and modifies Redux store branches following The Ripe Method
 
 # Building Ripe Store Branches
 
+## Cardinal Rules
+
+These are non-negotiable. Every other section assumes them.
+
+**1. Action payloads are interfaces with named fields — always.**
+Every action that carries data has a payload `interface` in `types.ts`. Even single-value payloads.
+```typescript
+// ❌ export type SetRanResultPayload = string;
+// ✅ export interface SetRanResultPayload { ranCode: string; }
+```
+See [Action Payload Rules](#action-payload-rules-critical) for the full rationale.
+
+**2. Reducers are dumb assignment.**
+No `if`, no API calls, no derived computation. All logic lives in listeners.
+
+**3. Collections use the dual structure.**
+`items: string[]` for order + `byId: Record<string, T>` for O(1) lookup. Never one without the other. See [state-shape.md](state-shape.md) for the canonical pattern and the optional `filteredItems` projection.
+
+**4. State has complete defaults.**
+No `undefined`. Use `null` for optional refs, `LOADING_STATES.idle` for status, `[]` / `{}` for collections.
+
+**5. Listeners hydrate; components don't fetch.**
+Components don't `dispatch(fetchX())` on mount. Listeners react to navigation, auth, or init signals — see "Listeners File" below and [listeners.md](listeners.md).
+
 ## Branch File Structure
 
 Each feature gets its own folder under `store/`:
@@ -130,6 +154,8 @@ export function initAppListeners() {
 
 ## Root Store Types
 
+`store/types.ts` holds the `Listener` interface (specific to Ripe's listener system) plus shared enums like `LOADING_STATES` / `LoadingState`. The `Listener` interface:
+
 ```typescript
 // store/types.ts
 import type {
@@ -151,9 +177,9 @@ export interface Listener {
     listenerApi: ListenerEffectAPI<RootState, AppDispatch>,
   ) => void | Promise<void>;
 }
-
-export type LoadingState = "idle" | "loading" | "loaded" | "error";
 ```
+
+`LOADING_STATES` and `LoadingState` live in this same file. They are scaffolded by the `ripe-init` skill — see [store-templates.md](../ripe-init/store-templates.md) for the canonical definition and rationale (const hashmap + derived type, not a TS `enum`).
 
 ## Types File
 
@@ -248,6 +274,7 @@ export const addToCart = createAction<AddToCartPayload>('products/addToCart');
 ```typescript
 // store/products/products.reducer.ts
 import { createReducer } from '@reduxjs/toolkit';
+import { LOADING_STATES } from '@/store/types';
 import type { ProductsState } from './types';
 import {
   fetchProducts,
@@ -256,7 +283,7 @@ import {
 } from './products.actions';
 
 const defaultState: ProductsState = {
-  status: 'idle',
+  status: LOADING_STATES.idle,
   items: [],
   byId: {},
 };
@@ -264,15 +291,15 @@ const defaultState: ProductsState = {
 export const productsReducer = createReducer(defaultState, (builder) => {
   builder
     .addCase(fetchProducts, (state) => {
-      state.status = 'loading';
+      state.status = LOADING_STATES.loading;
     })
     .addCase(fetchProductsSuccess, (state, action) => {
-      state.status = 'loaded';
+      state.status = LOADING_STATES.loaded;
       state.items = action.payload.items;
       state.byId = action.payload.byId;
     })
     .addCase(fetchProductsFailure, (state) => {
-      state.status = 'error';
+      state.status = LOADING_STATES.error;
     });
 });
 ```
@@ -340,7 +367,7 @@ function App() {
   return <Outlet />;
 }
 
-// store/products/products.listeners.ts — hydrates before the page renders
+// store/products/products.listener.ts — hydrates before the page renders
 listenerMiddleware.startListening({
   actionCreator: setLocation,
   effect: async (action, { dispatch }) => {
@@ -393,36 +420,6 @@ export const listener: Listener[] = [
 ];
 ```
 
-## State Shape Rules
-
-**Always use dual structure for collections:**
-
-```typescript
-// ✅ Dual structure
-{
-  items: ['p1', 'p2', 'p3'],   // Array: preserves order, cheap to iterate
-  byId: {                       // Object: O(1) lookup by ID
-    p1: { id: 'p1', name: 'Widget' },
-    p2: { id: 'p2', name: 'Gadget' },
-  }
-}
-
-// Rendering in order:
-state.products.items.map((id) => state.products.byId[id])
-
-// Single lookup:
-state.products.byId['p1']
-```
-
-**Status values:**
-```typescript
-type LoadingState = 'idle' | 'loading' | 'loaded' | 'error';
-```
-
-**Selector Rules:**
-// ✅ Optimize getting values from the state by declaring selectors
-export const selectProducts = (state: RootState) => state.products;
-
 ## Workflow Checklist
 
 ```
@@ -443,6 +440,11 @@ Store Branch Progress:
 
 **Import aliasing:** Use `@` as alias for `src/` in all imports (e.g., `@/store/types`, `@/modules/api`).
 
-**For listener patterns**: See [listeners.md](listeners.md)
-**For state shape design**: See [state-shape.md](state-shape.md)
-**For routing and setLocation bridge**: See building-ripe-routing skill
+## References
+
+| Document | When to read | What's covered |
+|---|---|---|
+| [state-shape.md](state-shape.md) | Designing branch state, adding collections, dealing with derived/filtered views, picking defaults | Six rules, dual structure, pre-computed projections (`filteredItems`), `LOADING_STATES`, defaults, full branch example |
+| [listeners.md](listeners.md) | Writing listeners — async, error handling, cross-branch reactions, action chains | Listener anatomy, preemptive hydration, error patterns, dispatch-from-listener |
+| [store-templates.md](../ripe-init/store-templates.md) | Looking up the canonical scaffold for `store/types.ts`, `store/store.ts`, `store/listener.ts`, root `app/` and `router/` branches | Initial files generated by `ripe-init`; canonical source for `LOADING_STATES` |
+| `building-ripe-routing` skill | Routing setup, the `setLocation` bridge, route-driven hydration | Separate skill — load it if the task touches routes or navigation |

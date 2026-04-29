@@ -65,11 +65,26 @@ const product = state.products.byId[productId];
 
 ## Status Values
 
-Use a consistent set across all branches:
+Use a consistent set across all branches. Define enum-like values as a `const` hashmap with a derived type — not a TS `enum`, not a bare string union:
 
 ```typescript
-type LoadingState = 'idle' | 'loading' | 'loaded' | 'error';
+export const LOADING_STATES = {
+  idle: 'idle',
+  loading: 'loading',
+  loaded: 'loaded',
+  error: 'error',
+} as const;
+
+export type LoadingState = typeof LOADING_STATES[keyof typeof LOADING_STATES];
 ```
+
+Why the const hashmap pattern:
+- No runtime reverse-mapping (TS `enum` quirk)
+- Tree-shakeable — unused keys drop out
+- Iterable: `Object.values(LOADING_STATES)`
+- One source for both the value (for use in code) and the type (for use in interfaces)
+
+Apply the same pattern to any enum-like type — filter values, status values, role types, etc.
 
 In the state shape:
 ```typescript
@@ -81,11 +96,55 @@ interface ProductsState {
 
 UI reacts to status:
 ```typescript
-if (status === 'loading') return <Spinner />;
-if (status === 'error') return <ErrorMessage />;
-if (status === 'idle') return null;
-// status === 'loaded' — render content
+if (status === LOADING_STATES.loading) return <Spinner />;
+if (status === LOADING_STATES.error) return <ErrorMessage />;
+if (status === LOADING_STATES.idle) return null;
+// status === LOADING_STATES.loaded — render content
 ```
+
+## Pre-computed Projections (`filteredItems`)
+
+> Optional pattern — apply when the view shows a filtered, searched, or sorted projection of a collection. Skip it for branches with no filter UI.
+
+When a view renders a derived list (filter, search, sort), don't compute the projection at render time or in a selector — compute it in the reducer at mutation time and store it as a `filteredItems` array alongside `items`. The view iterates `filteredItems` and never recomputes:
+
+```typescript
+interface ProductsState {
+  status: LoadingState;
+  items: string[];               // canonical IDs in server order
+  byId: Record<string, Product>;
+  filteredItems: string[];       // pre-computed projection — what the view renders
+  filter: ProductFilter;
+}
+```
+
+```typescript
+// View
+state.products.filteredItems.map((id) => state.products.byId[id])
+```
+
+Recompute `filteredItems` in the reducer on every event that can change the projection — filter changes, search query changes, items added or removed:
+
+```typescript
+.addCase(setFilter, (state, action) => {
+  state.filter = action.payload.filter;
+  state.filteredItems = applyFilter(state.items, state.byId, state.filter);
+})
+.addCase(fetchProductsSuccess, (state, action) => {
+  state.status = LOADING_STATES.loaded;
+  state.items = action.payload.items;
+  state.byId = action.payload.byId;
+  state.filteredItems = applyFilter(state.items, state.byId, state.filter);
+})
+```
+
+This is the "Cache on mutation, not read" rule applied to projections: the reducer does the work once at write time, the view stays dumb.
+
+**Naming.** `items` / `filteredItems` are the defaults. When a more specific noun fits the branch, rename consistently — `products` / `filteredProducts`, `orders` / `filteredOrders`. Never `ids` / `filteredIds`.
+
+**When to use it.** Views that render a filtered, searched, or sorted slice of a collection.
+
+**When not to.** A branch with no filter/search/sort UI can render `items.map((id) => byId[id])` directly. Don't add `filteredItems` preemptively — add it the moment a filter, search, or sort is introduced.
 
 ## UI State vs App State
 
@@ -145,9 +204,9 @@ Every branch must have complete defaults — no `undefined`:
 
 ```typescript
 const defaultState: ProductsState = {
-  status: 'idle',       // not undefined
-  items: [],            // not undefined
-  byId: {},             // not undefined
+  status: LOADING_STATES.idle,   // not undefined
+  items: [],                     // not undefined
+  byId: {},                      // not undefined
 };
 ```
 
@@ -159,8 +218,8 @@ interface UserState {
 }
 
 const defaultState: UserState = {
-  status: 'idle',
-  profile: null,        // explicitly null
+  status: LOADING_STATES.idle,
+  profile: null,                 // explicitly null
 };
 ```
 
@@ -195,7 +254,7 @@ export interface SetActiveOrderPayload {
 ```typescript
 // store/orders/orders.reducer.ts
 const defaultState: OrdersState = {
-  status: 'idle',
+  status: LOADING_STATES.idle,
   items: [],
   byId: {},
   activeOrderId: null,
@@ -204,15 +263,15 @@ const defaultState: OrdersState = {
 export const ordersReducer = createReducer(defaultState, (builder) => {
   builder
     .addCase(fetchOrders, (state) => {
-      state.status = 'loading';
+      state.status = LOADING_STATES.loading;
     })
     .addCase(fetchOrdersSuccess, (state, action) => {
-      state.status = 'loaded';
+      state.status = LOADING_STATES.loaded;
       state.items = action.payload.items;
       state.byId = action.payload.byId;
     })
     .addCase(fetchOrdersFailure, (state) => {
-      state.status = 'error';
+      state.status = LOADING_STATES.error;
     })
     .addCase(setActiveOrder, (state, action) => {
       state.activeOrderId = action.payload.orderId;

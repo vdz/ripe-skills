@@ -6,15 +6,17 @@ All files in `src/store/`. No substitutions needed — these are not project-nam
 
 ## src/store/types.ts
 
-Global types shared across all store branches.
+Global types shared across all store branches. Define enum-like values as a `const` hashmap with a derived type — not a TS `enum`, not a bare string union. No runtime reverse-mapping, tree-shakeable, iterable via `Object.values(LOADING_STATES)`, and the value and the type share one source. Apply this pattern to any enum-like type (filter values, role types, status values, etc.).
 
 ```typescript
-export enum LoadingState {
-  IDLE = 'idle',
-  LOADING = 'loading',
-  LOADED = 'loaded',
-  ERROR = 'error',
-}
+export const LOADING_STATES = {
+  idle: 'idle',
+  loading: 'loading',
+  loaded: 'loaded',
+  error: 'error',
+} as const;
+
+export type LoadingState = typeof LOADING_STATES[keyof typeof LOADING_STATES];
 ```
 
 ---
@@ -105,21 +107,21 @@ export const setOnlineStatus = createAction<boolean>('app/setOnlineStatus');
 
 ```typescript
 import { createReducer } from '@reduxjs/toolkit';
-import { LoadingState } from '@/store/types';
+import { LOADING_STATES } from '@/store/types';
 import type { AppState } from './types';
 import { appLoaded, setOnlineStatus } from './app.actions';
 
 const defaultState: AppState = {
   loaded: false,
   online: true,
-  status: LoadingState.IDLE,
+  status: LOADING_STATES.idle,
 };
 
 export const reducer = createReducer(defaultState, (builder) => {
   builder
     .addCase(appLoaded, (state) => {
       state.loaded = true;
-      state.status = LoadingState.LOADED;
+      state.status = LOADING_STATES.loaded;
     })
     .addCase(setOnlineStatus, (state, action) => {
       state.online = action.payload;
