@@ -1,11 +1,18 @@
 # Listener Patterns Reference
 
+## When to read this
+- Writing a listener for a new action
+- Picking a pattern (matcher, debounce, cross-branch, hydration)
+- Debugging "why isn't my data loading before the page renders?"
+- Adding error handling to an existing listener
+
 ## Contents
 - Listener file structure
 - Pattern 1: Single action (most common)
 - Pattern 2: Multiple actions (matcher)
 - Pattern 3: Predicate-based
 - Pattern 4: Cancel previous (search/debounce)
+- Pattern 5: Preemptive hydration via `setLocation`
 - Error handling
 - Reading state inside listeners
 - Chaining actions
@@ -91,6 +98,60 @@ import { isAnyOf } from "@reduxjs/toolkit";
 },
 ```
 
+## Pattern 5: Preemptive Hydration via `setLocation`
+
+The app should fetch and populate state **before** (or alongside) the components that depend on it. Listeners react to early signals — app init, authentication, route changes, parent-data-loaded actions — **never** to component mount. If a component has to ask for its own data, that's a missing listener.
+
+The canonical signal is a `setLocation` action, dispatched from the root `App` component whenever the route changes. This is the **one legitimate `useEffect` at the app boundary** — it bridges React Router into the Redux world so all listeners can react to navigation.
+
+```typescript
+// App.tsx — the single place that connects routing to the store
+function App() {
+  const location = useLocation();
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    dispatch(setLocation({ location: location.pathname }));
+  }, [location, dispatch]);
+
+  return <Outlet />;
+}
+```
+
+A page-owning branch then listens for the route it cares about and hydrates:
+
+```typescript
+// store/products/products.listener.ts
+{
+  actionCreator: setLocation,
+  effect: async (action, { dispatch }) => {
+    if (matchPath('/products', action.payload.location)) {
+      const payload = await fetchProductsApi();
+      dispatch(fetchProductsSuccess(payload));
+    }
+  },
+},
+```
+
+By the time `<ProductsPage />` mounts, `state.products.items` is populated — the component just renders.
+
+### Anti-pattern: component fetches its own data
+
+```typescript
+// ❌ Wrong — component is orchestrating data loading
+function ProductsPage() {
+  const dispatch = useAppDispatch();
+  useEffect(() => {
+    dispatch(fetchProducts());
+  }, []);
+  // ...
+}
+```
+
+The component now owns "decide when to fetch" *and* "render the result". That coupling spreads — every page repeats it, every test mocks it, every refactor risks it.
+
+The fix is always: move the trigger out of the component into a listener that reacts to a higher-level signal (route change, auth event, app init).
+
 ## Error Handling
 
 Always handle errors — dispatch a failure action, never let them silently fail:
@@ -118,6 +179,33 @@ Always handle errors — dispatch a failure action, never let them silently fail
   },
 },
 ```
+
+## Where Do Cross-Branch Listeners Live?
+
+When a listener reacts to action `A` (owned by branch X) and dispatches action `B` (owned by branch Y), it lives in **branch Y's `listener.ts`** — the branch whose data the effect is producing.
+
+```typescript
+// Example: on auth/loginSuccess, fetch the user's cart from the server.
+// loginSuccess is auth's action; the effect populates cart's data.
+// → put this listener in store/cart/cart.listener.ts, NOT auth.
+
+// store/cart/cart.listener.ts
+{
+  actionCreator: loginSuccess,
+  effect: async (action, { dispatch }) => {
+    try {
+      const items = await fetchCartFromServer(action.payload.userId);
+      dispatch(cartFetchedFromServer(items));
+    } catch {
+      // Silent — cart stays at its current/default state
+    }
+  },
+}
+```
+
+**Why this rule:** the listener's effect *produces* data for the target branch. Co-locating it with the branch that owns the produced data keeps related code together — when you change cart's state shape, you change cart's listeners; auth doesn't care.
+
+A listener that produces side effects **outside the store** (logging, analytics, UI toasts) lives wherever the *trigger* makes most sense — usually in `store/ui/` or `store/app/`.
 
 ## Reading State Inside Listeners
 

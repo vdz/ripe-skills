@@ -1,5 +1,12 @@
 # State Shape Design Reference
 
+## When to read this
+- Designing the state shape for a new branch
+- Adding a collection (lists, lookups, filters, search)
+- Picking defaults — what should be `null`, what should be `[]`, what `LOADING_STATES.idle`
+- Adding a filtered/searched/sorted view (the optional `filteredItems` pattern)
+- Deciding what belongs in state vs. in a selector
+
 ## Contents
 - Six rules for state structure
 - Dual structure pattern
