@@ -139,10 +139,10 @@ Four skills that teach Claude Code the complete Ripe architecture:
 
 | Skill | Lines | What Claude Learns |
 |---|---|---|
-| **`ripe-init`** | 99 | Scaffold a new project: Vite, TypeScript, Redux store, routing, CLAUDE.md |
-| **`building-ripe-store`** | 405 | Store branches: actions, reducers, listeners, API functions, dual-structure state |
+| **`ripe-init`** | 96 | Scaffold a new project: Vite, TypeScript, Redux store, routing, CLAUDE.md |
+| **`building-ripe-store`** | 148 | Store branches: actions, reducers, listeners, API functions, dual-structure state |
 | **`building-ripe-components`** | 238 | Component anatomy, semantic TSX, two-level aliases, styled-components, composition |
-| **`building-ripe-routing`** | 263 | React Router + `setLocation` bridge, preemptive hydration via listeners |
+| **`building-ripe-routing`** | 289 | React Router + `setLocation` bridge, preemptive hydration via listeners |
 
 Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/best-practices) — all SKILL.md files under 500 lines. Reference material uses progressive disclosure (loaded only when needed):
 
@@ -156,15 +156,17 @@ building-ripe-components/
   styled.md                           Naming conventions
 
 building-ripe-store/
-  SKILL.md                 405 lines  Store patterns
-  listeners.md                        Listener patterns
-  state-shape.md                      State shape design
+  SKILL.md                 148 lines  Navigator: cardinal rules + common-tasks matrix
+  creating-a-branch.md                End-to-end walkthrough for new branches
+  action-payloads.md                  Payload-as-interface rule, naming, pitfalls
+  state-shape.md                      State shape design + filteredItems projections
+  listeners.md                        Listener patterns + preemptive hydration
 
 building-ripe-routing/
-  SKILL.md                 263 lines  Routing patterns
+  SKILL.md                 289 lines  Routing patterns
 
 ripe-init/
-  SKILL.md                  99 lines  Scaffolding checklist
+  SKILL.md                  96 lines  Scaffolding checklist
   claude-md-template.md               CLAUDE.md scaffold
   config-templates.md                 Config file templates
   store-templates.md                  Store file templates
