@@ -262,7 +262,14 @@ describe('productsReducer', () => {
 			undefined,
 			fetchProductsSuccess({
 				items: ['p1'],
-				byId: { p1: { id: 'p1', name: 'Widget', price: 10, imageUrl: '' } },
+				byId: {
+					p1: {
+						id: 'p1',
+						name: 'Widget',
+						price: 10,
+						imageUrl: '',
+					},
+				},
 			})
 		);
 		expect(state.status).toBe(LOADING_STATES.loaded);
