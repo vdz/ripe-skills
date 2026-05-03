@@ -136,21 +136,25 @@ Multi-line handlers should be extracted to SETUP.
 
 ## Styled Components
 
-Class-based styling, never prop-based. Styled components are purely declarative — no conditionals or interpolated functions.
+Class-based styling, avoid prop-based. Use a className for runtime state (e.g., `disabled`, `active`, `selected`) and let CSS handle the rest.
 
 ```typescript
-// ❌ Wrong — prop-based
+// ❌ Avoid — prop-based interpolation for runtime state
 export const AddToCart = styled.button<{ disabled: boolean }>`
-  background: ${({ disabled }) => disabled ? colors.muted : colors.primary};
+  background: ${({ disabled }) => disabled ? 'var(--text-muted)' : 'var(--accent)'};
 `;
 
-// ✅ Correct — class-based
+// ✅ Prefer — class-based, with CSS-variable theme tokens
 export const AddToCart = styled.button`
-  background: ${colors.primary};
-  &.disabled { background: ${colors.muted}; }
+  background: var(--accent);
+  &.disabled { background: var(--text-muted); }
 `;
 // Component uses: <AddToCart className={cn({ disabled: isOutOfStock })} />
 ```
+
+Theme tokens are CSS custom properties defined in a global `theme.css` — see [styled.md](styled.md#theming-via-css-variables).
+
+For stable visual variants set at the call site (not toggled at runtime), props are acceptable — see [styled.md](styled.md#variants-pattern).
 
 Names describe purpose: `ProductCardWrapper` not `Container`, `AddToCart` not `Button`.
 
