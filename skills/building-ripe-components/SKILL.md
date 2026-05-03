@@ -124,7 +124,9 @@ Short single-dispatch lambdas ARE fine in the return:
 
 ```typescript
 // ✅ OK — declarative and clear
-<NextButton onClick={() => dispatch(flowDone())}>Next</NextButton>
+<NextButton onClick={() => {
+	dispatch(flowDone())
+}}>Next</NextButton>
 
 // ❌ Unnecessary wrapper for trivial one-liner
 function handleNext() { dispatch(flowDone()); }
@@ -145,7 +147,9 @@ Class-based styling, avoid prop-based. Runtime state (e.g., `disabled`, `active`
 ```typescript
 export const AddToCart = styled.button`
 	background: var(--accent);
-	&.disabled { background: var(--text-muted); }
+	&.disabled {
+		background: var(--text-muted);
+	}
 `;
 // Component uses: <AddToCart className={cn({ disabled: isOutOfStock })} />
 ```

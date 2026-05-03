@@ -127,7 +127,7 @@ Switch with `document.documentElement.classList.toggle('theme-dark')` — no Rea
 
 For **stable visual variants** that are set at the call site and don't toggle at runtime (e.g., a badge's `status`, a button's `intent`), there are two acceptable shapes. Both use CSS variables for values.
 
-### Class-based (preferred — no prop interpolation)
+### Class-based (preferred! — no prop interpolation)
 
 The variants are CSS classes; the JSX selects which one is active via `className`. This exemplifies the SKILL.md rule directly.
 
@@ -140,9 +140,18 @@ export const StatusBadge = styled.span`
 	border-radius: 12px;
 	font-size: 0.75rem;
 
-	&.active   { background: var(--success-light); color: var(--success); }
-	&.pending  { background: var(--warning-light); color: var(--warning); }
-	&.inactive { background: var(--neutral-light); color: var(--neutral); }
+	&.active {
+		background: var(--success-light);
+		color: var(--success);
+	}
+	&.pending {
+		background: var(--warning-light);
+		color: var(--warning);
+	}
+	&.inactive {
+		background: var(--neutral-light);
+		color: var(--neutral);
+	}
 `;
 ```
 
