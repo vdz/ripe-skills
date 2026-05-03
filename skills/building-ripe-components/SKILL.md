@@ -136,15 +136,9 @@ Multi-line handlers should be extracted to SETUP.
 
 ## Styled Components
 
-Class-based styling, avoid prop-based. Use a className for runtime state (e.g., `disabled`, `active`, `selected`) and let CSS handle the rest.
+Class-based styling, avoid prop-based. Runtime state (e.g., `disabled`, `active`, `selected`) goes on `className`; the styled component reads pure CSS that branches on that class.
 
 ```typescript
-// ❌ Avoid — prop-based interpolation for runtime state
-export const AddToCart = styled.button<{ disabled: boolean }>`
-  background: ${({ disabled }) => disabled ? 'var(--text-muted)' : 'var(--accent)'};
-`;
-
-// ✅ Prefer — class-based, with CSS-variable theme tokens
 export const AddToCart = styled.button`
   background: var(--accent);
   &.disabled { background: var(--text-muted); }
