@@ -210,6 +210,25 @@ function renderLabel() {
 
 **Exception:** Simple `{value}` or `{label}` interpolations are fine.
 
+## Object Literal Layout
+
+Multi-property object literals get one property per line — unless the object fits trivially on a single line (1–2 short properties). This applies to inline configs, props on a styled component, and plain data objects in modules.
+
+```typescript
+// ✅ Single-line trivial
+const range = { min: 0, max: 100 };
+
+// ✅ One per line for non-trivial
+const branches = {
+	b1: { result: "Return to Customer", reason: "working, no fault" },
+	b2: { result: "Book For Repair",     reason: "in-warranty + functional fault" },
+	b3: { result: "Check Chargeable",    reason: "in-warranty + physical damage only" },
+};
+
+// ❌ Single-line dense — hard to scan
+const branches = { b1: { result: "Return to Customer", reason: "working, no fault" }, b2: { result: "Book For Repair", reason: "in-warranty + functional fault" } };
+```
+
 ## Component Behavior Rules
 
 - **Passive and reactive** — reads state, dispatches actions, nothing else
