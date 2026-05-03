@@ -28,7 +28,7 @@ dispatch(setRanResult("RAN-12345"));
 
 // ✅ RIGHT — interface with named field
 export interface SetRanResultPayload {
-  ranCode: string;
+	ranCode: string;
 }
 dispatch(setRanResult({ ranCode: "RAN-12345" }));
 // self-documenting at every call site
@@ -94,9 +94,9 @@ addToCart            → AddToCartPayload
 // store/products/products.actions.ts
 import { createAction } from '@reduxjs/toolkit';
 import type {
-  FetchProductsSuccessPayload,
-  FetchProductsFailurePayload,
-  AddToCartPayload,
+	FetchProductsSuccessPayload,
+	FetchProductsFailurePayload,
+	AddToCartPayload,
 } from './types';
 
 // No payload — fire-and-forget event

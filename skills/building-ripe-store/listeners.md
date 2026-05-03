@@ -29,18 +29,18 @@ import { fetchServiceQueue, fetchServiceQueueSuccess, fetchServiceQueueFailure }
 import { fetchServiceRequests } from "./api/fetchServiceRequests";
 
 export const listener: Listener[] = [
-  {
-    actionCreator: fetchServiceQueue,
-    effect: async (_, { dispatch, getState }) => {
-      const shopId = getState().shop.id;
-      try {
-        const requests = await fetchServiceRequests(shopId);
-        dispatch(fetchServiceQueueSuccess(requests));
-      } catch {
-        dispatch(fetchServiceQueueFailure({ error: "Failed to fetch" }));
-      }
-    },
-  },
+	{
+		actionCreator: fetchServiceQueue,
+		effect: async (_, { dispatch, getState }) => {
+			const shopId = getState().shop.id;
+			try {
+				const requests = await fetchServiceRequests(shopId);
+				dispatch(fetchServiceQueueSuccess(requests));
+			} catch {
+				dispatch(fetchServiceQueueFailure({ error: "Failed to fetch" }));
+			}
+		},
+	},
 ];
 ```
 
@@ -50,11 +50,11 @@ All listener arrays are registered centrally in `store/listener.ts` via `initApp
 
 ```typescript
 {
-  actionCreator: userLoggedIn,
-  effect: async (action, { dispatch }) => {
-    const profile = await fetchUserProfile(action.payload.userId);
-    dispatch(userProfileLoaded(profile));
-  },
+	actionCreator: userLoggedIn,
+	effect: async (action, { dispatch }) => {
+		const profile = await fetchUserProfile(action.payload.userId);
+		dispatch(userProfileLoaded(profile));
+	},
 },
 ```
 
@@ -64,11 +64,11 @@ All listener arrays are registered centrally in `store/listener.ts` via `initApp
 import { isAnyOf } from "@reduxjs/toolkit";
 
 {
-  matcher: isAnyOf(userLoggedIn, userLoggedOut, tokenExpired),
-  effect: async (_, { dispatch }) => {
-    dispatch(syncAuthState());
-    dispatch(checkNotifications());
-  },
+	matcher: isAnyOf(userLoggedIn, userLoggedOut, tokenExpired),
+	effect: async (_, { dispatch }) => {
+		dispatch(syncAuthState());
+		dispatch(checkNotifications());
+	},
 },
 ```
 
@@ -76,11 +76,11 @@ import { isAnyOf } from "@reduxjs/toolkit";
 
 ```typescript
 {
-  matcher: (action) => action.type.endsWith("/failure"),
-  effect: async (action, { dispatch }) => {
-    const error = action.payload as { error: string };
-    dispatch(showErrorToast({ message: error.error }));
-  },
+	matcher: (action) => action.type.endsWith("/failure"),
+	effect: async (action, { dispatch }) => {
+		const error = action.payload as { error: string };
+		dispatch(showErrorToast({ message: error.error }));
+	},
 },
 ```
 
@@ -88,13 +88,13 @@ import { isAnyOf } from "@reduxjs/toolkit";
 
 ```typescript
 {
-  actionCreator: searchQueryChanged,
-  effect: async (action, { cancelActiveListeners, dispatch, delay }) => {
-    cancelActiveListeners();
-    await delay(300); // debounce
-    const results = await searchApi(action.payload.query);
-    dispatch(searchResultsLoaded({ results }));
-  },
+	actionCreator: searchQueryChanged,
+	effect: async (action, { cancelActiveListeners, dispatch, delay }) => {
+		cancelActiveListeners();
+		await delay(300); // debounce
+		const results = await searchApi(action.payload.query);
+		dispatch(searchResultsLoaded({ results }));
+	},
 },
 ```
 
@@ -107,14 +107,14 @@ The canonical signal is a `setLocation` action, dispatched from the root `App` c
 ```typescript
 // App.tsx — the single place that connects routing to the store
 function App() {
-  const location = useLocation();
-  const dispatch = useAppDispatch();
+	const location = useLocation();
+	const dispatch = useAppDispatch();
 
-  useEffect(() => {
-    dispatch(setLocation({ location: location.pathname }));
-  }, [location, dispatch]);
+	useEffect(() => {
+		dispatch(setLocation({ location: location.pathname }));
+	}, [location, dispatch]);
 
-  return <Outlet />;
+	return <Outlet />;
 }
 ```
 
@@ -123,13 +123,13 @@ A page-owning branch then listens for the route it cares about and hydrates:
 ```typescript
 // store/products/products.listener.ts
 {
-  actionCreator: setLocation,
-  effect: async (action, { dispatch }) => {
-    if (matchPath('/products', action.payload.location)) {
-      const payload = await fetchProductsApi();
-      dispatch(fetchProductsSuccess(payload));
-    }
-  },
+	actionCreator: setLocation,
+	effect: async (action, { dispatch }) => {
+		if (matchPath('/products', action.payload.location)) {
+			const payload = await fetchProductsApi();
+			dispatch(fetchProductsSuccess(payload));
+		}
+	},
 },
 ```
 
@@ -140,11 +140,11 @@ By the time `<ProductsPage />` mounts, `state.products.items` is populated — t
 ```typescript
 // ❌ Wrong — component is orchestrating data loading
 function ProductsPage() {
-  const dispatch = useAppDispatch();
-  useEffect(() => {
-    dispatch(fetchProducts());
-  }, []);
-  // ...
+	const dispatch = useAppDispatch();
+	useEffect(() => {
+		dispatch(fetchProducts());
+	}, []);
+	// ...
 }
 ```
 
@@ -158,25 +158,25 @@ Always handle errors — dispatch a failure action, never let them silently fail
 
 ```typescript
 {
-  actionCreator: submitOrder,
-  effect: async (action, { dispatch, getState }) => {
-    const cartId = getState().cart.id;
+	actionCreator: submitOrder,
+	effect: async (action, { dispatch, getState }) => {
+		const cartId = getState().cart.id;
 
-    // Validate preconditions first
-    if (!cartId) {
-      dispatch(submitOrderFailure({ error: "No active cart" }));
-      return;
-    }
+		// Validate preconditions first
+		if (!cartId) {
+			dispatch(submitOrderFailure({ error: "No active cart" }));
+			return;
+		}
 
-    try {
-      const order = await createOrder({ cartId });
-      dispatch(submitOrderSuccess({ orderId: order.id }));
-      dispatch(clearCart());
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Order failed";
-      dispatch(submitOrderFailure({ error: message }));
-    }
-  },
+		try {
+			const order = await createOrder({ cartId });
+			dispatch(submitOrderSuccess({ orderId: order.id }));
+			dispatch(clearCart());
+		} catch (e) {
+			const message = e instanceof Error ? e.message : "Order failed";
+			dispatch(submitOrderFailure({ error: message }));
+		}
+	},
 },
 ```
 
@@ -191,15 +191,15 @@ When a listener reacts to action `A` (owned by branch X) and dispatches action `
 
 // store/cart/cart.listener.ts
 {
-  actionCreator: loginSuccess,
-  effect: async (action, { dispatch }) => {
-    try {
-      const items = await fetchCartFromServer(action.payload.userId);
-      dispatch(cartFetchedFromServer(items));
-    } catch {
-      // Silent — cart stays at its current/default state
-    }
-  },
+	actionCreator: loginSuccess,
+	effect: async (action, { dispatch }) => {
+		try {
+			const items = await fetchCartFromServer(action.payload.userId);
+			dispatch(cartFetchedFromServer(items));
+		} catch {
+			// Silent — cart stays at its current/default state
+		}
+	},
 }
 ```
 
@@ -211,24 +211,24 @@ A listener that produces side effects **outside the store** (logging, analytics,
 
 ```typescript
 {
-  actionCreator: fetchServiceQueue,
-  effect: async (_, { dispatch, getState }) => {
-    // Access state with getState()
-    const shopId = getState().shop.id;
-    const userId = getState().user.profile?.id;
+	actionCreator: fetchServiceQueue,
+	effect: async (_, { dispatch, getState }) => {
+		// Access state with getState()
+		const shopId = getState().shop.id;
+		const userId = getState().user.profile?.id;
 
-    if (!shopId || !userId) {
-      dispatch(fetchServiceQueueFailure({ error: "Missing context" }));
-      return;
-    }
+		if (!shopId || !userId) {
+			dispatch(fetchServiceQueueFailure({ error: "Missing context" }));
+			return;
+		}
 
-    try {
-      const queue = await fetchQueue({ shopId, userId });
-      dispatch(fetchServiceQueueSuccess(queue));
-    } catch {
-      dispatch(fetchServiceQueueFailure({ error: "Failed to fetch queue" }));
-    }
-  },
+		try {
+			const queue = await fetchQueue({ shopId, userId });
+			dispatch(fetchServiceQueueSuccess(queue));
+		} catch {
+			dispatch(fetchServiceQueueFailure({ error: "Failed to fetch queue" }));
+		}
+	},
 },
 ```
 
@@ -238,20 +238,20 @@ Listeners can dispatch multiple actions to orchestrate complex flows:
 
 ```typescript
 {
-  actionCreator: appInit,
-  effect: async (_, { dispatch }) => {
-    // Load in sequence
-    const config = await fetchAppConfig();
-    dispatch(appConfigLoaded(config));
+	actionCreator: appInit,
+	effect: async (_, { dispatch }) => {
+		// Load in sequence
+		const config = await fetchAppConfig();
+		dispatch(appConfigLoaded(config));
 
-    // Parallel loads after config
-    await Promise.all([
-      dispatch(fetchUser()),
-      dispatch(fetchProducts()),
-    ]);
+		// Parallel loads after config
+		await Promise.all([
+			dispatch(fetchUser()),
+			dispatch(fetchProducts()),
+		]);
 
-    dispatch(appReady());
-  },
+		dispatch(appReady());
+	},
 },
 ```
 
@@ -261,18 +261,18 @@ Listeners can dispatch multiple actions to orchestrate complex flows:
 ```typescript
 // ❌ Wrong — listener job done in component
 function Checkout() {
-  async function handleSubmit() {
-    if (!validateCart()) return;
-    const order = await api.createOrder();
-    router.push("/success");
-  }
+	async function handleSubmit() {
+		if (!validateCart()) return;
+		const order = await api.createOrder();
+		router.push("/success");
+	}
 }
 
 // ✅ Correct — component dispatches, listener handles everything
 function Checkout() {
-  function handleSubmit() {
-    dispatch(submitOrder());
-  }
+	function handleSubmit() {
+		dispatch(submitOrder());
+	}
 }
 ```
 
@@ -280,22 +280,22 @@ function Checkout() {
 ```typescript
 // ❌ Wrong — reducer makes decisions
 .addCase(addToCart, (state, action) => {
-  const existing = state.byId[action.payload.id];
-  if (existing) {
-    existing.quantity += 1;
-  } else {
-    state.items.push(action.payload.id);
-    state.byId[action.payload.id] = { ...action.payload, quantity: 1 };
-  }
+	const existing = state.byId[action.payload.id];
+	if (existing) {
+		existing.quantity += 1;
+	} else {
+		state.items.push(action.payload.id);
+		state.byId[action.payload.id] = { ...action.payload, quantity: 1 };
+	}
 })
 
 // ✅ Correct — listener decides which action to dispatch
 .addCase(incrementCartItemQuantity, (state, action) => {
-  state.byId[action.payload.id].quantity += 1;
+	state.byId[action.payload.id].quantity += 1;
 })
 .addCase(addCartItem, (state, action) => {
-  state.items.push(action.payload.id);
-  state.byId[action.payload.id] = action.payload;
+	state.items.push(action.payload.id);
+	state.byId[action.payload.id] = action.payload;
 })
 ```
 

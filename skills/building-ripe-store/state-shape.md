@@ -31,9 +31,9 @@ Every collection uses both an array (for order) and an object (for lookup):
 
 ```typescript
 interface ProductsState {
-  status: LoadingState;
-  items: string[];              // IDs: ['p1', 'p3', 'p2']
-  byId: Record<string, Product>; // Data: { p1: {...}, p2: {...}, p3: {...} }
+	status: LoadingState;
+	items: string[];              // IDs: ['p1', 'p3', 'p2']
+	byId: Record<string, Product>; // Data: { p1: {...}, p2: {...}, p3: {...} }
 }
 ```
 
@@ -56,8 +56,8 @@ const product = state.products.byId[productId];
 ```typescript
 // Reducer case for addProduct
 .addCase(addProduct, (state, action) => {
-  state.items.push(action.payload.id);
-  state.byId[action.payload.id] = action.payload.product;
+	state.items.push(action.payload.id);
+	state.byId[action.payload.id] = action.payload.product;
 })
 ```
 
@@ -65,8 +65,8 @@ const product = state.products.byId[productId];
 ```typescript
 // Reducer case for removeProduct
 .addCase(removeProduct, (state, action) => {
-  state.items = state.items.filter((id) => id !== action.payload.id);
-  delete state.byId[action.payload.id];
+	state.items = state.items.filter((id) => id !== action.payload.id);
+	delete state.byId[action.payload.id];
 })
 ```
 
@@ -76,10 +76,10 @@ Use a consistent set across all branches. Define enum-like values as a `const` h
 
 ```typescript
 export const LOADING_STATES = {
-  idle: 'idle',
-  loading: 'loading',
-  loaded: 'loaded',
-  error: 'error',
+	idle: 'idle',
+	loading: 'loading',
+	loaded: 'loaded',
+	error: 'error',
 } as const;
 
 export type LoadingState = typeof LOADING_STATES[keyof typeof LOADING_STATES];
@@ -96,8 +96,8 @@ Apply the same pattern to any enum-like type — filter values, status values, r
 In the state shape:
 ```typescript
 interface ProductsState {
-  status: LoadingState;  // not isLoading:boolean — covers all 4 states
-  // ...
+	status: LoadingState;  // not isLoading:boolean — covers all 4 states
+	// ...
 }
 ```
 
@@ -117,11 +117,11 @@ When a view renders a derived list (filter, search, sort), don't compute the pro
 
 ```typescript
 interface ProductsState {
-  status: LoadingState;
-  items: string[];               // canonical IDs in server order
-  byId: Record<string, Product>;
-  filteredItems: string[];       // pre-computed projection — what the view renders
-  filter: ProductFilter;
+	status: LoadingState;
+	items: string[];               // canonical IDs in server order
+	byId: Record<string, Product>;
+	filteredItems: string[];       // pre-computed projection — what the view renders
+	filter: ProductFilter;
 }
 ```
 
@@ -134,14 +134,14 @@ Recompute `filteredItems` in the reducer on every event that can change the proj
 
 ```typescript
 .addCase(setFilter, (state, action) => {
-  state.filter = action.payload.filter;
-  state.filteredItems = applyFilter(state.items, state.byId, state.filter);
+	state.filter = action.payload.filter;
+	state.filteredItems = applyFilter(state.items, state.byId, state.filter);
 })
 .addCase(fetchProductsSuccess, (state, action) => {
-  state.status = LOADING_STATES.loaded;
-  state.items = action.payload.items;
-  state.byId = action.payload.byId;
-  state.filteredItems = applyFilter(state.items, state.byId, state.filter);
+	state.status = LOADING_STATES.loaded;
+	state.items = action.payload.items;
+	state.byId = action.payload.byId;
+	state.filteredItems = applyFilter(state.items, state.byId, state.filter);
 })
 ```
 
@@ -160,16 +160,16 @@ Both live in the global store — but in different branches:
 ```typescript
 // app/ branch — core application state
 app: {
-  loaded: boolean;
-  online: boolean;
-  language: Language;
+	loaded: boolean;
+	online: boolean;
+	language: Language;
 }
 
 // ui/ branch — ephemeral UI state
 ui: {
-  modalShow: boolean;
-  activeTab: TabId;
-  contextMenus: Record<string, { show: boolean }>;
+	modalShow: boolean;
+	activeTab: TabId;
+	contextMenus: Record<string, { show: boolean }>;
 }
 
 // feature branches — domain data
@@ -196,13 +196,13 @@ state.cart.itemCount = items.length
 
 // ✅ Correct — computed in selectors
 export const selectCartTotal = (state: RootState) =>
-  state.cart.items.reduce(
-    (sum, id) => sum + (state.cart.byId[id]?.price ?? 0),
-    0
-  );
+	state.cart.items.reduce(
+		(sum, id) => sum + (state.cart.byId[id]?.price ?? 0),
+		0
+	);
 
 export const selectCartItemCount = (state: RootState) =>
-  state.cart.items.length;
+	state.cart.items.length;
 ```
 
 ## Default State Requirements
@@ -211,22 +211,22 @@ Every branch must have complete defaults — no `undefined`:
 
 ```typescript
 const defaultState: ProductsState = {
-  status: LOADING_STATES.idle,   // not undefined
-  items: [],                     // not undefined
-  byId: {},                      // not undefined
+	status: LOADING_STATES.idle,   // not undefined
+	items: [],                     // not undefined
+	byId: {},                      // not undefined
 };
 ```
 
 For optional data:
 ```typescript
 interface UserState {
-  status: LoadingState;
-  profile: UserProfile | null;  // null, not undefined
+	status: LoadingState;
+	profile: UserProfile | null;  // null, not undefined
 }
 
 const defaultState: UserState = {
-  status: LOADING_STATES.idle,
-  profile: null,                 // explicitly null
+	status: LOADING_STATES.idle,
+	profile: null,                 // explicitly null
 };
 ```
 
@@ -235,53 +235,53 @@ const defaultState: UserState = {
 ```typescript
 // store/orders/types.ts
 export interface Order {
-  id: string;
-  status: 'pending' | 'processing' | 'complete' | 'failed';
-  total: number;
-  createdAt: string;
+	id: string;
+	status: 'pending' | 'processing' | 'complete' | 'failed';
+	total: number;
+	createdAt: string;
 }
 
 export interface OrdersState {
-  status: LoadingState;
-  items: string[];
-  byId: Record<string, Order>;
-  activeOrderId: string | null;
+	status: LoadingState;
+	items: string[];
+	byId: Record<string, Order>;
+	activeOrderId: string | null;
 }
 
 export interface FetchOrdersSuccessPayload {
-  items: string[];
-  byId: Record<string, Order>;
+	items: string[];
+	byId: Record<string, Order>;
 }
 
 export interface SetActiveOrderPayload {
-  orderId: string;
+	orderId: string;
 }
 ```
 
 ```typescript
 // store/orders/orders.reducer.ts
 const defaultState: OrdersState = {
-  status: LOADING_STATES.idle,
-  items: [],
-  byId: {},
-  activeOrderId: null,
+	status: LOADING_STATES.idle,
+	items: [],
+	byId: {},
+	activeOrderId: null,
 };
 
 export const ordersReducer = createReducer(defaultState, (builder) => {
-  builder
-    .addCase(fetchOrders, (state) => {
-      state.status = LOADING_STATES.loading;
-    })
-    .addCase(fetchOrdersSuccess, (state, action) => {
-      state.status = LOADING_STATES.loaded;
-      state.items = action.payload.items;
-      state.byId = action.payload.byId;
-    })
-    .addCase(fetchOrdersFailure, (state) => {
-      state.status = LOADING_STATES.error;
-    })
-    .addCase(setActiveOrder, (state, action) => {
-      state.activeOrderId = action.payload.orderId;
-    });
+	builder
+		.addCase(fetchOrders, (state) => {
+			state.status = LOADING_STATES.loading;
+		})
+		.addCase(fetchOrdersSuccess, (state, action) => {
+			state.status = LOADING_STATES.loaded;
+			state.items = action.payload.items;
+			state.byId = action.payload.byId;
+		})
+		.addCase(fetchOrdersFailure, (state) => {
+			state.status = LOADING_STATES.error;
+		})
+		.addCase(setActiveOrder, (state, action) => {
+			state.activeOrderId = action.payload.orderId;
+		});
 });
 ```

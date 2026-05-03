@@ -35,16 +35,16 @@ For deeper coverage of any step:
 ```
 store/
 └── products/
-    ├── api/
-    │   ├── fetchProducts.ts
-    │   └── updateProduct.ts
-    ├── __tests__/
-    │   └── products.reducer.test.ts
-    ├── types.ts
-    ├── products.actions.ts
-    ├── products.reducer.ts
-    ├── products.selectors.ts        # Optional, only if needed
-    └── products.listener.ts
+	├── api/
+	│   ├── fetchProducts.ts
+	│   └── updateProduct.ts
+	├── __tests__/
+	│   └── products.reducer.test.ts
+	├── types.ts
+	├── products.actions.ts
+	├── products.reducer.ts
+	├── products.selectors.ts        # Optional, only if needed
+	└── products.listener.ts
 ```
 
 Tests always live in `__tests__/` — never alongside source files. Imports use `../` to reach the parent.
@@ -60,26 +60,26 @@ State shape, domain types, and payload interfaces all live here. See [state-shap
 import type { LoadingState } from '@/store/types';
 
 export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  imageUrl: string;
+	id: string;
+	name: string;
+	price: number;
+	imageUrl: string;
 }
 
 export interface ProductsState {
-  status: LoadingState;
-  items: string[];                // canonical IDs in server order
-  byId: Record<string, Product>;  // O(1) lookup
+	status: LoadingState;
+	items: string[];                // canonical IDs in server order
+	byId: Record<string, Product>;  // O(1) lookup
 }
 
 // One payload interface per data-bearing action
 export interface FetchProductsSuccessPayload {
-  items: string[];
-  byId: Record<string, Product>;
+	items: string[];
+	byId: Record<string, Product>;
 }
 
 export interface FetchProductsFailurePayload {
-  error: string;
+	error: string;
 }
 ```
 
@@ -93,8 +93,8 @@ See [action-payloads.md](action-payloads.md) for the full rules and naming guida
 // store/products/products.actions.ts
 import { createAction } from '@reduxjs/toolkit';
 import type {
-  FetchProductsSuccessPayload,
-  FetchProductsFailurePayload,
+	FetchProductsSuccessPayload,
+	FetchProductsFailurePayload,
 } from './types';
 
 export const fetchProducts = createAction('products/fetchProducts');
@@ -114,30 +114,30 @@ import { createReducer } from '@reduxjs/toolkit';
 import { LOADING_STATES } from '@/store/types';
 import type { ProductsState } from './types';
 import {
-  fetchProducts,
-  fetchProductsSuccess,
-  fetchProductsFailure,
+	fetchProducts,
+	fetchProductsSuccess,
+	fetchProductsFailure,
 } from './products.actions';
 
 const defaultState: ProductsState = {
-  status: LOADING_STATES.idle,
-  items: [],
-  byId: {},
+	status: LOADING_STATES.idle,
+	items: [],
+	byId: {},
 };
 
 export const productsReducer = createReducer(defaultState, (builder) => {
-  builder
-    .addCase(fetchProducts, (state) => {
-      state.status = LOADING_STATES.loading;
-    })
-    .addCase(fetchProductsSuccess, (state, action) => {
-      state.status = LOADING_STATES.loaded;
-      state.items = action.payload.items;
-      state.byId = action.payload.byId;
-    })
-    .addCase(fetchProductsFailure, (state) => {
-      state.status = LOADING_STATES.error;
-    });
+	builder
+		.addCase(fetchProducts, (state) => {
+			state.status = LOADING_STATES.loading;
+		})
+		.addCase(fetchProductsSuccess, (state, action) => {
+			state.status = LOADING_STATES.loaded;
+			state.items = action.payload.items;
+			state.byId = action.payload.byId;
+		})
+		.addCase(fetchProductsFailure, (state) => {
+			state.status = LOADING_STATES.error;
+		});
 });
 ```
 
@@ -156,32 +156,32 @@ import { api } from '@/modules/api';
 import type { FetchProductsSuccessPayload, Product } from '../types';
 
 export async function fetchProducts(): Promise<FetchProductsSuccessPayload> {
-  const response = await api.products.list();
+	const response = await api.products.list();
 
-  if (!response || response.status !== 'OK') {
-    throw new Error(response?.errorMessage ?? 'Failed to fetch products');
-  }
+	if (!response || response.status !== 'OK') {
+		throw new Error(response?.errorMessage ?? 'Failed to fetch products');
+	}
 
-  return formatProducts(response.entities);
+	return formatProducts(response.entities);
 }
 
 function formatProducts(entities: ProductEntity[]): FetchProductsSuccessPayload {
-  if (!entities) {
-    return { items: [], byId: {} };
-  }
+	if (!entities) {
+		return { items: [], byId: {} };
+	}
 
-  return {
-    items: entities.map((e) => e.id),
-    byId: entities.reduce<Record<string, Product>>((acc, e) => {
-      acc[e.id] = {
-        id: e.id,
-        name: e.displayName,
-        price: e.priceInCents / 100,
-        imageUrl: e.imageUrl ?? '',
-      };
-      return acc;
-    }, {}),
-  };
+	return {
+		items: entities.map((e) => e.id),
+		byId: entities.reduce<Record<string, Product>>((acc, e) => {
+			acc[e.id] = {
+				id: e.id,
+				name: e.displayName,
+				price: e.priceInCents / 100,
+				imageUrl: e.imageUrl ?? '',
+			};
+			return acc;
+		}, {}),
+	};
 }
 ```
 
@@ -197,31 +197,31 @@ Listeners hold all business logic — API calls, decisions, orchestration, error
 // store/products/products.listener.ts
 import type { Listener } from '@/store/types';
 import {
-  fetchProducts,
-  fetchProductsSuccess,
-  fetchProductsFailure,
+	fetchProducts,
+	fetchProductsSuccess,
+	fetchProductsFailure,
 } from './products.actions';
 import { fetchProducts as fetchProductsApi } from './api/fetchProducts';
 
 export const listener: Listener[] = [
-  {
-    actionCreator: fetchProducts,
-    effect: async (_, { dispatch, getState }) => {
-      const shopId = getState().shop.id;
+	{
+		actionCreator: fetchProducts,
+		effect: async (_, { dispatch, getState }) => {
+			const shopId = getState().shop.id;
 
-      if (!shopId) {
-        dispatch(fetchProductsFailure({ error: 'No shop selected' }));
-        return;
-      }
+			if (!shopId) {
+				dispatch(fetchProductsFailure({ error: 'No shop selected' }));
+				return;
+			}
 
-      try {
-        const payload = await fetchProductsApi();
-        dispatch(fetchProductsSuccess(payload));
-      } catch {
-        dispatch(fetchProductsFailure({ error: 'Failed to fetch products' }));
-      }
-    },
-  },
+			try {
+				const payload = await fetchProductsApi();
+				dispatch(fetchProductsSuccess(payload));
+			} catch {
+				dispatch(fetchProductsFailure({ error: 'Failed to fetch products' }));
+			}
+		},
+	},
 ];
 ```
 
@@ -239,41 +239,41 @@ import { describe, it, expect } from 'vitest';
 import { LOADING_STATES } from '@/store/types';
 import { productsReducer } from '../products.reducer';
 import {
-  fetchProducts,
-  fetchProductsSuccess,
-  fetchProductsFailure,
+	fetchProducts,
+	fetchProductsSuccess,
+	fetchProductsFailure,
 } from '../products.actions';
 
 describe('productsReducer', () => {
-  it('starts idle with empty collections', () => {
-    const state = productsReducer(undefined, { type: '@@INIT' });
-    expect(state.status).toBe(LOADING_STATES.idle);
-    expect(state.items).toEqual([]);
-    expect(state.byId).toEqual({});
-  });
+	it('starts idle with empty collections', () => {
+		const state = productsReducer(undefined, { type: '@@INIT' });
+		expect(state.status).toBe(LOADING_STATES.idle);
+		expect(state.items).toEqual([]);
+		expect(state.byId).toEqual({});
+	});
 
-  it('moves to loading on fetchProducts', () => {
-    const state = productsReducer(undefined, fetchProducts());
-    expect(state.status).toBe(LOADING_STATES.loading);
-  });
+	it('moves to loading on fetchProducts', () => {
+		const state = productsReducer(undefined, fetchProducts());
+		expect(state.status).toBe(LOADING_STATES.loading);
+	});
 
-  it('populates items and byId on fetchProductsSuccess', () => {
-    const state = productsReducer(
-      undefined,
-      fetchProductsSuccess({
-        items: ['p1'],
-        byId: { p1: { id: 'p1', name: 'Widget', price: 10, imageUrl: '' } },
-      })
-    );
-    expect(state.status).toBe(LOADING_STATES.loaded);
-    expect(state.items).toEqual(['p1']);
-    expect(state.byId.p1.name).toBe('Widget');
-  });
+	it('populates items and byId on fetchProductsSuccess', () => {
+		const state = productsReducer(
+			undefined,
+			fetchProductsSuccess({
+				items: ['p1'],
+				byId: { p1: { id: 'p1', name: 'Widget', price: 10, imageUrl: '' } },
+			})
+		);
+		expect(state.status).toBe(LOADING_STATES.loaded);
+		expect(state.items).toEqual(['p1']);
+		expect(state.byId.p1.name).toBe('Widget');
+	});
 
-  it('moves to error on fetchProductsFailure', () => {
-    const state = productsReducer(undefined, fetchProductsFailure({ error: 'oops' }));
-    expect(state.status).toBe(LOADING_STATES.error);
-  });
+	it('moves to error on fetchProductsFailure', () => {
+		const state = productsReducer(undefined, fetchProductsFailure({ error: 'oops' }));
+		expect(state.status).toBe(LOADING_STATES.error);
+	});
 });
 ```
 
@@ -289,11 +289,11 @@ The branch isn't live until both the reducer and the listener are registered.
 import { productsReducer } from './products/products.reducer';
 
 export const store = configureStore({
-  reducer: {
-    // ...existing branches
-    products: productsReducer,
-  },
-  // ...
+	reducer: {
+		// ...existing branches
+		products: productsReducer,
+	},
+	// ...
 });
 ```
 
@@ -303,8 +303,8 @@ export const store = configureStore({
 import { listener as productsListener } from './products/products.listener';
 
 const listeners: Listener[][] = [
-  // ...existing listeners
-  productsListener,
+	// ...existing listeners
+	productsListener,
 ];
 ```
 

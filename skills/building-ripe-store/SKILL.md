@@ -38,16 +38,16 @@ store/
 ├── types.ts          # Shared types (Listener, LOADING_STATES)
 ├── index.ts          # Re-exports
 └── products/         # One folder per feature
-    ├── api/
-    │   ├── fetchProducts.ts
-    │   └── updateProduct.ts
-    ├── __tests__/
-    │   └── products.reducer.test.ts
-    ├── types.ts                  # State shape, payload, API interfaces
-    ├── products.actions.ts
-    ├── products.reducer.ts
-    ├── products.selectors.ts     # Optional, only if needed
-    └── products.listener.ts
+	├── api/
+	│   ├── fetchProducts.ts
+	│   └── updateProduct.ts
+	├── __tests__/
+	│   └── products.reducer.test.ts
+	├── types.ts                  # State shape, payload, API interfaces
+	├── products.actions.ts
+	├── products.reducer.ts
+	├── products.selectors.ts     # Optional, only if needed
+	└── products.listener.ts
 ```
 
 Tests live in `__tests__/` — never alongside source files. Imports use `../` to reach the parent.
@@ -70,23 +70,23 @@ Tests live in `__tests__/` — never alongside source files. Imports use `../` t
 ```typescript
 // store/types.ts (excerpt)
 import type {
-  ActionCreatorWithPayload,
-  ListenerEffectAPI,
-  AnyAction,
-  ActionCreator,
+	ActionCreatorWithPayload,
+	ListenerEffectAPI,
+	AnyAction,
+	ActionCreator,
 } from "@reduxjs/toolkit";
 import type { RootState, AppDispatch } from "./store";
 
 export interface Listener {
-  actionCreator?:
-    | ActionCreatorWithPayload<any, string>
-    | ActionCreator<string>
-    | Array<ActionCreatorWithPayload<any, string> | ActionCreator<string>>;
-  matcher?: (action: AnyAction) => boolean;
-  effect: (
-    action: any,
-    listenerApi: ListenerEffectAPI<RootState, AppDispatch>,
-  ) => void | Promise<void>;
+	actionCreator?:
+		| ActionCreatorWithPayload<any, string>
+		| ActionCreator<string>
+		| Array<ActionCreatorWithPayload<any, string> | ActionCreator<string>>;
+	matcher?: (action: AnyAction) => boolean;
+	effect: (
+		action: any,
+		listenerApi: ListenerEffectAPI<RootState, AppDispatch>,
+	) => void | Promise<void>;
 }
 ```
 
@@ -101,8 +101,8 @@ After scaffolding the branch (see [creating-a-branch.md](creating-a-branch.md)),
 import { productsReducer } from './products/products.reducer';
 // ...
 configureStore({
-  reducer: { /* ...existing, */ products: productsReducer },
-  // ...
+	reducer: { /* ...existing, */ products: productsReducer },
+	// ...
 });
 ```
 
