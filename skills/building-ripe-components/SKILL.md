@@ -12,11 +12,11 @@ Every component is a folder:
 ```
 components/
 └── ProductCard/
-		├── ProductInternals/     # (optional) Internal components
-		├── ProductCard.tsx       # Component logic
-		├── ProductCard.styled.tsx # Styled components
-		├── types.ts              # Component-specific types
-		└── index.ts              # Re-export only
+	├── ProductInternals/     # (optional) Internal components
+	├── ProductCard.tsx       # Component logic
+	├── ProductCard.styled.tsx # Styled components
+	├── types.ts              # Component-specific types
+	└── index.ts              # Re-export only
 ```
 
 `index.ts` contains only: `export { ProductCard } from './ProductCard';`
@@ -60,7 +60,7 @@ export function ProductCard({ productId }: ProductCardProps) {
 
 ### Indentation
 
-Tabs throughout — for `.tsx`, `.styled.tsx`, `.ts`. Industry standard, matches the monorepo norm. Configure your editor: tab width 4 is fine, but the character must be a tab.
+Tabs throughout — for `.tsx`, `.styled.tsx`, `.ts`. **Matches the ESLint rule (`indent: ["error", "tab"]`) enforced in the monorepo.** Configure your editor: tab width 4 is fine, but the character must be a tab.
 
 ## Types File
 
