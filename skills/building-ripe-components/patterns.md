@@ -12,36 +12,36 @@
 ### Loading state
 ```typescript
 export function UserProfile({ userId }: UserProfileProps) {
-  const status = useAppSelector((state) => state.user.status);
-  const user = useAppSelector((state) => state.user.byId[userId]);
+	const status = useAppSelector((state) => state.user.status);
+	const user = useAppSelector((state) => state.user.byId[userId]);
 
-  if (status === 'loading') return <ProfileSkeleton />;
-  if (!user) return null;
+	if (status === 'loading') return <ProfileSkeleton />;
+	if (!user) return null;
 
-  return (
-    <ProfileWrapper>
-      <UserName>{user.name}</UserName>
-      <UserEmail>{user.email}</UserEmail>
-    </ProfileWrapper>
-  );
+	return (
+		<ProfileWrapper>
+			<UserName>{user.name}</UserName>
+			<UserEmail>{user.email}</UserEmail>
+		</ProfileWrapper>
+	);
 }
 ```
 
 ### Multiple guards
 ```typescript
 export function OrderDetail({ orderId }: OrderDetailProps) {
-  const order = useAppSelector((state) => state.orders.byId[orderId]);
-  const isAdmin = useAppSelector((state) => state.user.profile?.role === 'admin');
+	const order = useAppSelector((state) => state.orders.byId[orderId]);
+	const isAdmin = useAppSelector((state) => state.user.profile?.role === 'admin');
 
-  if (!order) return null;
-  if (!isAdmin) return <AccessDenied />;
+	if (!order) return null;
+	if (!isAdmin) return <AccessDenied />;
 
-  return (
-    <OrderDetailWrapper>
-      <OrderId>#{order.id}</OrderId>
-      <OrderStatus status={order.status}>{order.status}</OrderStatus>
-    </OrderDetailWrapper>
-  );
+	return (
+		<OrderDetailWrapper>
+			<OrderId>#{order.id}</OrderId>
+			<OrderStatus status={order.status}>{order.status}</OrderStatus>
+		</OrderDetailWrapper>
+	);
 }
 ```
 
@@ -49,14 +49,14 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
 
 ```typescript
 return (
-  <CartWrapper>
-    <CartTitle>{t('cart')}</CartTitle>
-    {items.length === 0 && <EmptyCartMessage>{t('empty-cart')}</EmptyCartMessage>}
-    {items.map((id) => (
-      <CartItem key={id} itemId={id} />
-    ))}
-    {items.length > 0 && <CheckoutButton onClick={handleCheckout}>{t('checkout')}</CheckoutButton>}
-  </CartWrapper>
+	<CartWrapper>
+		<CartTitle>{t('cart')}</CartTitle>
+		{items.length === 0 && <EmptyCartMessage>{t('empty-cart')}</EmptyCartMessage>}
+		{items.map((id) => (
+			<CartItem key={id} itemId={id} />
+		))}
+		{items.length > 0 && <CheckoutButton onClick={handleCheckout}>{t('checkout')}</CheckoutButton>}
+	</CartWrapper>
 );
 ```
 
@@ -69,23 +69,23 @@ Each item in a list gets its own component:
 ```typescript
 // ✅ Delegate to child component
 return (
-  <ProductListWrapper>
-    {productIds.map((id) => (
-      <ProductCard key={id} productId={id} />
-    ))}
-  </ProductListWrapper>
+	<ProductListWrapper>
+		{productIds.map((id) => (
+			<ProductCard key={id} productId={id} />
+		))}
+	</ProductListWrapper>
 );
 
 // ❌ Inline list item
 return (
-  <div>
-    {products.map((p) => (
-      <div key={p.id}>
-        <h3>{p.name}</h3>
-        <span>{p.price}</span>
-      </div>
-    ))}
-  </div>
+	<div>
+		{products.map((p) => (
+			<div key={p.id}>
+				<h3>{p.name}</h3>
+				<span>{p.price}</span>
+			</div>
+		))}
+	</div>
 );
 ```
 
@@ -95,24 +95,24 @@ Simple dispatches inline or as concise helpers:
 
 ```typescript
 export function ProductCard({ productId }: ProductCardProps) {
-  const dispatch = useAppDispatch();
+	const dispatch = useAppDispatch();
 
-  return (
-    <ProductCardWrapper>
-      <ProductName>{/* ... */}</ProductName>
-      <AddToCartButton onClick={() => dispatch(addToCart(productId))}>
-        {t('add-to-cart')}
-      </AddToCartButton>
-      <RemoveButton onClick={handleRemove}>
-        {t('remove')}
-      </RemoveButton>
-    </ProductCardWrapper>
-  );
+	return (
+		<ProductCardWrapper>
+			<ProductName>{/* ... */}</ProductName>
+			<AddToCartButton onClick={() => dispatch(addToCart(productId))}>
+				{t('add-to-cart')}
+			</AddToCartButton>
+			<RemoveButton onClick={handleRemove}>
+				{t('remove')}
+			</RemoveButton>
+		</ProductCardWrapper>
+	);
 
-  function handleRemove() {
-    dispatch(removeFromWishlist(productId));
-    dispatch(showToast({ message: t('removed') }));
-  }
+	function handleRemove() {
+		dispatch(removeFromWishlist(productId));
+		dispatch(showToast({ message: t('removed') }));
+	}
 }
 ```
 
@@ -135,14 +135,14 @@ useEffect(() => { dispatch(fetchProducts()); }, []);
 ```typescript
 // ❌ Wrong
 function handleSubmit() {
-  const isValid = validateForm(formData);
-  if (!isValid) { setErrors(...); return; }
-  api.submitOrder(formData).then(() => router.push('/success'));
+	const isValid = validateForm(formData);
+	if (!isValid) { setErrors(...); return; }
+	api.submitOrder(formData).then(() => router.push('/success'));
 }
 
 // ✅ Correct — dispatch and let listener handle everything
 function handleSubmit() {
-  dispatch(submitOrder());
+	dispatch(submitOrder());
 }
 ```
 
@@ -160,7 +160,7 @@ function ProductCard({ productId }: ProductCardProps) { ... }
 // ❌ Wrong
 const activeItems = [];
 for (let i = 0; i < items.length; i++) {
-  if (items[i].active) activeItems.push(items[i]);
+	if (items[i].active) activeItems.push(items[i]);
 }
 
 // ✅ Correct

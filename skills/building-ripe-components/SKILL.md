@@ -12,11 +12,11 @@ Every component is a folder:
 ```
 components/
 └── ProductCard/
-    ├── ProductInternals/     # (optional) Internal components
-    ├── ProductCard.tsx       # Component logic
-    ├── ProductCard.styled.tsx # Styled components
-    ├── types.ts              # Component-specific types
-    └── index.ts              # Re-export only
+		├── ProductInternals/     # (optional) Internal components
+		├── ProductCard.tsx       # Component logic
+		├── ProductCard.styled.tsx # Styled components
+		├── types.ts              # Component-specific types
+		└── index.ts              # Re-export only
 ```
 
 `index.ts` contains only: `export { ProductCard } from './ProductCard';`
@@ -27,25 +27,25 @@ Every component follows this exact order:
 
 ```typescript
 export function ProductCard({ productId }: ProductCardProps) {
-  // ═══ SETUP ═══
-  const { t } = useTranslation();
-  const product = useAppSelector((state) => state.products.byId[productId]);
+	// ═══ SETUP ═══
+	const { t } = useTranslation();
+	const product = useAppSelector((state) => state.products.byId[productId]);
 
-  // ═══ EARLY EXIT ═══
-  if (!product) return null;
+	// ═══ EARLY EXIT ═══
+	if (!product) return null;
 
-  // ═══ RETURN ═══
-  return (
-    <ProductCardWrapper>
-      <ProductName>{product.name}</ProductName>
-      <PriceTag>{formatDisplayPrice()}</PriceTag>
-    </ProductCardWrapper>
-  );
+	// ═══ RETURN ═══
+	return (
+		<ProductCardWrapper>
+			<ProductName>{product.name}</ProductName>
+			<PriceTag>{formatDisplayPrice()}</PriceTag>
+		</ProductCardWrapper>
+	);
 
-  // ═══ HELPERS ═══
-  function formatDisplayPrice() {
-    return `$${product.price.toFixed(2)}`;
-  }
+	// ═══ HELPERS ═══
+	function formatDisplayPrice() {
+		return `$${product.price.toFixed(2)}`;
+	}
 }
 ```
 
@@ -58,6 +58,10 @@ export function ProductCard({ productId }: ProductCardProps) {
 - Helpers: defined below the return statement
 - No `useEffect` for hydration/API calls. DOM manipulation only when necessary.
 
+### Indentation
+
+Tabs throughout — for `.tsx`, `.styled.tsx`, `.ts`. Industry standard, matches the monorepo norm. Configure your editor: tab width 4 is fine, but the character must be a tab.
+
 ## Types File
 
 Derive from store types rather than duplicating:
@@ -66,7 +70,7 @@ Derive from store types rather than duplicating:
 import type { Product } from '@/store/products/types';
 
 export interface ProductCardProps {
-  id: Product['id'];  // stays in sync automatically
+	id: Product['id'];  // stays in sync automatically
 }
 ```
 
@@ -81,22 +85,22 @@ The return must read like a **content document**. Names describe **WHAT** the co
 ```typescript
 // ❌ Wrong — implementation details
 return (
-  <FieldGroup>
-    <FieldGroupLabel>Digital Tuner</FieldGroupLabel>
-    <RadioGroup value={tunerValue} onChange={handleTunerChange}>
-      <RadioItem value="yes" label="Yes" />
-    </RadioGroup>
-  </FieldGroup>
+	<FieldGroup>
+		<FieldGroupLabel>Digital Tuner</FieldGroupLabel>
+		<RadioGroup value={tunerValue} onChange={handleTunerChange}>
+			<RadioItem value="yes" label="Yes" />
+		</RadioGroup>
+	</FieldGroup>
 );
 
 // ✅ Correct — semantic names
 return (
-  <DigitalTunerQuery>
-    <Label>Digital Tuner</Label>
-    <Answers value={tunerValue} onChange={handleTunerChange}>
-      <Answer value="yes">Yes</Answer>
-    </Answers>
-  </DigitalTunerQuery>
+	<DigitalTunerQuery>
+		<Label>Digital Tuner</Label>
+		<Answers value={tunerValue} onChange={handleTunerChange}>
+			<Answer value="yes">Yes</Answer>
+		</Answers>
+	</DigitalTunerQuery>
 );
 ```
 
@@ -140,8 +144,8 @@ Class-based styling, avoid prop-based. Runtime state (e.g., `disabled`, `active`
 
 ```typescript
 export const AddToCart = styled.button`
-  background: var(--accent);
-  &.disabled { background: var(--text-muted); }
+	background: var(--accent);
+	&.disabled { background: var(--text-muted); }
 `;
 // Component uses: <AddToCart className={cn({ disabled: isOutOfStock })} />
 ```
@@ -159,27 +163,27 @@ Names describe purpose: `ProductCardWrapper` not `Container`, `AddToCart` not `B
 ```typescript
 // ✅ Correct — explicit composition
 function Dashboard() {
-  return (
-    <DashboardLayout>
-      <Header />
-      <RevenuePanel />
-      <OrdersPanel />
-      <InventoryPanel />
-    </DashboardLayout>
-  );
+	return (
+		<DashboardLayout>
+			<Header />
+			<RevenuePanel />
+			<OrdersPanel />
+			<InventoryPanel />
+		</DashboardLayout>
+	);
 }
 
 // Each panel gates itself:
 function OrdersPanel() {
-  const visible = useAppSelector(selectOrdersPanelVisible);
-  if (!visible) return null;
-  // ...
+	const visible = useAppSelector(selectOrdersPanelVisible);
+	if (!visible) return null;
+	// ...
 }
 
 // ❌ Wrong — config-driven rendering
 const panels = [
-  { id: "revenue", component: RevenuePanel },
-  { id: "orders", component: OrdersPanel },
+	{ id: "revenue", component: RevenuePanel },
+	{ id: "orders", component: OrdersPanel },
 ];
 // ... panels.filter().map()
 ```
@@ -199,8 +203,8 @@ No logic in JSX. Extract ternaries to helpers, compute `cn()` in SETUP:
 
 // ═══ HELPERS ═══
 function renderLabel() {
-  if (isCompleted) return `${label} — done`;
-  return label;
+	if (isCompleted) return `${label} — done`;
+	return label;
 }
 ```
 

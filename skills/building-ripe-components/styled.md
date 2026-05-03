@@ -23,10 +23,10 @@ Import into the component:
 ```typescript
 // ProductCard.tsx
 import {
-  ProductCardWrapper,
-  ProductName,
-  PriceTag,
-  AddToCartButton,
+	ProductCardWrapper,
+	ProductName,
+	PriceTag,
+	AddToCartButton,
 } from './ProductCard.styled';
 ```
 
@@ -60,24 +60,24 @@ Define design tokens as CSS custom properties in a single global stylesheet. Ref
 
 ```css
 :root {
-  /* Color tokens */
-  --surface: #FAFAF8;
-  --card: #FFFFFF;
-  --text-primary: #1A1A1A;
-  --text-muted: #8B8685;
-  --accent: #A8694B;
-  --success: #3D8B6E;
-  --error: #C7523B;
-  --border: #E8E4E0;
+	/* Color tokens */
+	--surface: #FAFAF8;
+	--card: #FFFFFF;
+	--text-primary: #1A1A1A;
+	--text-muted: #8B8685;
+	--accent: #A8694B;
+	--success: #3D8B6E;
+	--error: #C7523B;
+	--border: #E8E4E0;
 
-  /* Spacing, radius */
-  --spacer: 4px;
-  --radius-card: 12px;
-  --radius-button: 20px;
+	/* Spacing, radius */
+	--spacer: 4px;
+	--radius-card: 12px;
+	--radius-button: 20px;
 
-  /* Typography */
-  --font-primary: 'Geist Sans', -apple-system, system-ui, sans-serif;
-  --text-body: 14px;
+	/* Typography */
+	--font-primary: 'Geist Sans', -apple-system, system-ui, sans-serif;
+	--text-body: 14px;
 }
 ```
 
@@ -94,15 +94,15 @@ import '@/assets/styles/theme.css';
 import styled from 'styled-components';
 
 export const AddToCart = styled.button`
-  background: var(--accent);
-  color: var(--card);
-  border-radius: var(--radius-button);
-  padding: calc(var(--spacer) * 2) calc(var(--spacer) * 4);
+	background: var(--accent);
+	color: var(--card);
+	border-radius: var(--radius-button);
+	padding: calc(var(--spacer) * 2) calc(var(--spacer) * 4);
 
-  &.disabled {
-    background: var(--text-muted);
-    cursor: not-allowed;
-  }
+	&.disabled {
+		background: var(--text-muted);
+		cursor: not-allowed;
+	}
 `;
 ```
 
@@ -114,10 +114,10 @@ A different theme is a different scoped `:root` rule, toggled by class on `<html
 
 ```css
 :root.theme-dark {
-  --surface: #0F0F0F;
-  --card: #1A1A1A;
-  --text-primary: #F0F0F0;
-  /* ... only the tokens that change */
+	--surface: #0F0F0F;
+	--card: #1A1A1A;
+	--text-primary: #F0F0F0;
+	/* ... only the tokens that change */
 }
 ```
 
@@ -136,13 +136,13 @@ The variants are CSS classes; the JSX selects which one is active via `className
 import styled from 'styled-components';
 
 export const StatusBadge = styled.span`
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
+	padding: 4px 8px;
+	border-radius: 12px;
+	font-size: 0.75rem;
 
-  &.active   { background: var(--success-light); color: var(--success); }
-  &.pending  { background: var(--warning-light); color: var(--warning); }
-  &.inactive { background: var(--neutral-light); color: var(--neutral); }
+	&.active   { background: var(--success-light); color: var(--success); }
+	&.pending  { background: var(--warning-light); color: var(--warning); }
+	&.inactive { background: var(--neutral-light); color: var(--neutral); }
 `;
 ```
 
@@ -160,34 +160,34 @@ When you want the variant typed at the component boundary (e.g., to require `sta
 import styled, { css } from 'styled-components';
 
 interface StatusBadgeProps {
-  status: 'active' | 'inactive' | 'pending';
+	status: 'active' | 'inactive' | 'pending';
 }
 
 export const StatusBadge = styled.span<StatusBadgeProps>`
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
+	padding: 4px 8px;
+	border-radius: 12px;
+	font-size: 0.75rem;
 
-  ${({ status }) =>
-    status === 'active' &&
-    css`
-      background: var(--success-light);
-      color: var(--success);
-    `}
+	${({ status }) =>
+		status === 'active' &&
+		css`
+			background: var(--success-light);
+			color: var(--success);
+		`}
 
-  ${({ status }) =>
-    status === 'pending' &&
-    css`
-      background: var(--warning-light);
-      color: var(--warning);
-    `}
+	${({ status }) =>
+		status === 'pending' &&
+		css`
+			background: var(--warning-light);
+			color: var(--warning);
+		`}
 
-  ${({ status }) =>
-    status === 'inactive' &&
-    css`
-      background: var(--neutral-light);
-      color: var(--neutral);
-    `}
+	${({ status }) =>
+		status === 'inactive' &&
+		css`
+			background: var(--neutral-light);
+			color: var(--neutral);
+		`}
 `;
 ```
 
