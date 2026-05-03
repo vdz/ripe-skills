@@ -160,53 +160,6 @@ Usage in component JSX:
 <StatusBadge className={item.status}>{item.status}</StatusBadge>
 ```
 
-### Prop-based (acceptable for typed variant APIs)
-
-When you want the variant typed at the component boundary (e.g., to require `status` and reject typos), prop-based interpolation is fine. It's a documented exception to the "avoid prop-based" rule for *stable kind-of-thing* variants — never for runtime state.
-
-```typescript
-// In .styled.tsx
-import styled, { css } from 'styled-components';
-
-interface StatusBadgeProps {
-	status: 'active' | 'inactive' | 'pending';
-}
-
-export const StatusBadge = styled.span<StatusBadgeProps>`
-	padding: 4px 8px;
-	border-radius: 12px;
-	font-size: 0.75rem;
-
-	${({ status }) =>
-		status === 'active' &&
-		css`
-			background: var(--success-light);
-			color: var(--success);
-		`}
-
-	${({ status }) =>
-		status === 'pending' &&
-		css`
-			background: var(--warning-light);
-			color: var(--warning);
-		`}
-
-	${({ status }) =>
-		status === 'inactive' &&
-		css`
-			background: var(--neutral-light);
-			color: var(--neutral);
-		`}
-`;
-```
-
-Usage:
-```typescript
-<StatusBadge status={item.status}>{item.status}</StatusBadge>
-```
-
-**When to prefer which:** start with class-based. Reach for prop-based only when you want the variant typed at the component's TypeScript boundary (e.g., a published component library where consumers need autocomplete on the variant prop).
-
 ## Organizing Large Styled Files
 
 When a styled file grows beyond ~80 lines, group with comments:
