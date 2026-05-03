@@ -103,7 +103,10 @@ After scaffolding the branch (see [creating-a-branch.md](creating-a-branch.md)),
 import { productsReducer } from './products/products.reducer';
 // ...
 configureStore({
-	reducer: { /* ...existing, */ products: productsReducer },
+	reducer: {
+		// ...existing
+		products: productsReducer,
+	},
 	// ...
 });
 ```
@@ -112,7 +115,10 @@ configureStore({
 ```typescript
 import { listener as productsListener } from './products/products.listener';
 // ...
-const listeners: Listener[][] = [ /* ...existing, */ productsListener ];
+const listeners: Listener[][] = [
+	// ...existing
+	productsListener,
+];
 ```
 
 A branch isn't live until **both** are registered.
