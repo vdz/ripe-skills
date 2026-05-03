@@ -1,6 +1,6 @@
 {
   "name": "ripe-skills",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "author": "Yehuda Gilead (https://github.com/vdz)",
   "description": "Claude Code skills for The Ripe Method — a front-end architecture for building maintainable React + Redux Toolkit applications in the agentic age",
   "repository": {
