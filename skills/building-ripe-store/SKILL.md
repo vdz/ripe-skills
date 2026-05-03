@@ -79,16 +79,18 @@ import type { RootState, AppDispatch } from "./store";
 
 export interface Listener {
 	actionCreator?:
-		| ActionCreatorWithPayload<any, string>
+		| ActionCreatorWithPayload<unknown, string>
 		| ActionCreator<string>
-		| Array<ActionCreatorWithPayload<any, string> | ActionCreator<string>>;
+		| Array<ActionCreatorWithPayload<unknown, string> | ActionCreator<string>>;
 	matcher?: (action: AnyAction) => boolean;
 	effect: (
-		action: any,
+		action: AnyAction,
 		listenerApi: ListenerEffectAPI<RootState, AppDispatch>,
 	) => void | Promise<void>;
 }
 ```
+
+> The `unknown` payload generic and `AnyAction` parameter type satisfy `@typescript-eslint/no-explicit-any`. Effect bodies can still access `action.payload.X` as before because `AnyAction` carries an `any`-typed `payload` from the library types — the rule only flags `any` written in your code, not in library type definitions. For strict payload typing at the use site, narrow with a cast: `const { userId } = (action as PayloadAction<{ userId: string }>).payload;`.
 
 `LOADING_STATES` and `LoadingState` also live in `store/types.ts`. See [store-templates.md](../ripe-init/store-templates.md) for the canonical scaffold (const hashmap + derived type, not a TS `enum`).
 
