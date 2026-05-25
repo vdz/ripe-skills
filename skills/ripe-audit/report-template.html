@@ -1,0 +1,241 @@
+<!doctype html>
+<!--
+Ripe audit report template.
+
+Placeholders to fill at generation time:
+  {{DATE}}              YYYY-MM-DD
+  {{BRANCH}}            git branch name
+  {{COMMIT}}            short SHA
+  {{COUNT_H}} / _M / _L / _OK / _SKIP   severity counts
+  {{MISSION}}           one-paragraph mission restated from SKILL.md
+  {{H_CARDS}} / {{M_CARDS}} / {{L_CARDS}}   sequence of <article class="card">…</article>
+  {{OK_LIST}}           bulleted list of OK findings
+  {{SKIP_LIST}}         bulleted list of skipped/documented-deviation items
+
+CRITICAL: the <script> block uses LITERAL > and & characters. Browsers do NOT
+decode HTML entities inside <script>. Entity-escaped JS is a silent parse error
+and the copy button will quietly fail. Keep it literal.
+
+Card template (one per finding):
+
+<article class="card sev-{H|M|L}" id="{ID}">
+    <div class="card-head">
+        <span class="card-id">{ID}</span>
+        <h3 class="card-title">{TITLE}</h3>
+        <span class="tag {sev}">{H|M|L}</span>
+    </div>
+    <p class="meta">{path:line} · Rule: <code>{rule-source}</code></p>
+    <div class="block-label">What's wrong</div>
+    <div class="code">{offending code excerpt}</div>
+    <div class="block-label">Fix</div>
+    <div class="code diff-add">{fix code or template}</div>
+    <p class="why"><strong>Why:</strong> {one-sentence rationale}</p>
+    <div class="comment-wrap">
+        <label for="cmt-{ID}">Comment</label>
+        <textarea class="comment" id="cmt-{ID}" data-id="{ID}" data-title="{TITLE}"></textarea>
+    </div>
+</article>
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ripe Audit · {{DATE}}</title>
+<style>
+:root {
+	--bg: #fafaf7;
+	--panel: #ffffff;
+	--ink: #1c1c1a;
+	--muted: #6c6b66;
+	--rule: #e6e3dc;
+	--rule-strong: #d2cec5;
+	--code-bg: #f4f1ea;
+	--add-bg: #e8f3ec;
+	--sev-h: #c7523b;
+	--sev-h-soft: #fbe7e2;
+	--sev-m: #b8531f;
+	--sev-m-soft: #fbe9d8;
+	--sev-l: #6c6b66;
+	--sev-l-soft: #f0eeea;
+	--font-prose: ui-serif, "Iowan Old Style", Charter, Georgia, serif;
+	--font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	--font-mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-prose); font-size: 16px; line-height: 1.55; }
+.shell { max-width: 1180px; margin: 0 auto; padding: 0 24px 120px; }
+header.top {
+	position: sticky; top: 0; z-index: 50;
+	background: rgba(250,250,247,.92); backdrop-filter: saturate(140%) blur(6px);
+	border-bottom: 1px solid var(--rule); margin: 0 -24px 24px; padding: 14px 24px;
+}
+.top-row { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+.top-row h1 { font-size: 20px; margin: 0; font-family: var(--font-ui); font-weight: 600; }
+.top-row .sub { color: var(--muted); font-size: 13px; font-family: var(--font-ui); }
+.top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; font-family: var(--font-ui); font-size: 13px; }
+.counter { color: var(--muted); }
+button.copy-btn { font: inherit; cursor: pointer; background: var(--ink); color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; font-weight: 600; }
+button.copy-btn:hover { background: #2a2926; }
+
+.mission { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 22px; margin-bottom: 18px; }
+.counts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 28px; }
+.count { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; text-align: center; }
+.count strong { display: block; font-size: 24px; font-family: var(--font-ui); }
+.count.h strong { color: var(--sev-h); }
+.count.m strong { color: var(--sev-m); }
+.count.l strong { color: var(--sev-l); }
+.count span { font-family: var(--font-ui); font-size: 12px; color: var(--muted); }
+
+section { margin-bottom: 40px; }
+section h2 { font-family: var(--font-ui); font-size: 22px; font-weight: 600; margin: 0 0 14px; }
+
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 22px; margin-bottom: 16px; }
+.card.sev-H { border-left: 4px solid var(--sev-h); }
+.card.sev-M { border-left: 4px solid var(--sev-m); }
+.card.sev-L { border-left: 4px solid var(--sev-l); }
+.card-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; }
+.card-id { font-family: var(--font-mono); font-size: 12px; font-weight: 700; background: var(--ink); color: #fff; padding: 2px 8px; border-radius: 4px; }
+.card-title { font-family: var(--font-ui); font-size: 17px; font-weight: 600; margin: 0; }
+.tag { font-family: var(--font-ui); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.tag.H { background: var(--sev-h-soft); color: var(--sev-h); }
+.tag.M { background: var(--sev-m-soft); color: var(--sev-m); }
+.tag.L { background: var(--sev-l-soft); color: var(--sev-l); }
+.meta { color: var(--muted); font-family: var(--font-ui); font-size: 13px; margin: 0 0 10px; }
+.meta code { font-family: var(--font-mono); font-size: 12px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+.block-label { font-family: var(--font-ui); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 12px 0 6px; }
+.code { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; background: var(--code-bg); padding: 12px 14px; border-radius: 8px; white-space: pre; overflow-x: auto; border: 1px solid #ebe6dc; }
+.code.diff-add { background: var(--add-bg); border-color: #c8e2d3; }
+.why { font-size: 14px; margin: 10px 0 0; }
+.comment-wrap { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--rule-strong); }
+.comment-wrap label { display: block; font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+textarea.comment { width: 100%; min-height: 56px; resize: vertical; font: inherit; font-family: var(--font-ui); font-size: 14px; padding: 10px 12px; border: 1px solid var(--rule-strong); border-radius: 6px; background: #fffefb; color: var(--ink); }
+textarea.comment:focus { outline: 2px solid var(--sev-m); outline-offset: 1px; }
+textarea.comment.has-content { border-color: var(--sev-m); background: #fffaf3; }
+
+.ok-list, .skip-list { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 22px; }
+.ok-list ul, .skip-list ul { margin: 0; padding-left: 22px; }
+.ok-list li, .skip-list li { margin-bottom: 4px; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 8px; font-family: var(--font-ui); font-size: 14px; opacity: 0; transition: opacity .18s; pointer-events: none; }
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header class="top">
+	<div class="shell">
+		<div class="top-row">
+			<h1>Ripe Audit</h1>
+			<span class="sub">{{DATE}} · branch <code>{{BRANCH}}</code> @ <code>{{COMMIT}}</code></span>
+			<div class="top-actions">
+				<span class="counter" id="counter">0 comments</span>
+				<button class="copy-btn" id="copyBtn">Copy all comments</button>
+			</div>
+		</div>
+	</div>
+</header>
+
+<div class="shell">
+
+<div class="mission">
+	<p>{{MISSION}}</p>
+</div>
+
+<div class="counts">
+	<div class="count h"><strong>{{COUNT_H}}</strong><span>H — high</span></div>
+	<div class="count m"><strong>{{COUNT_M}}</strong><span>M — medium</span></div>
+	<div class="count l"><strong>{{COUNT_L}}</strong><span>L — low</span></div>
+	<div class="count"><strong>{{COUNT_OK}}</strong><span>OK — compliant</span></div>
+	<div class="count"><strong>{{COUNT_SKIP}}</strong><span>Skip — deviation</span></div>
+</div>
+
+<section>
+	<h2>H — High</h2>
+	{{H_CARDS}}
+</section>
+
+<section>
+	<h2>M — Medium</h2>
+	{{M_CARDS}}
+</section>
+
+<section>
+	<h2>L — Low</h2>
+	{{L_CARDS}}
+</section>
+
+<section>
+	<h2>OK — Verified compliant</h2>
+	<div class="ok-list"><ul>{{OK_LIST}}</ul></div>
+</section>
+
+<section>
+	<h2>Appendix — Skipped (documented deviations)</h2>
+	<div class="skip-list"><ul>{{SKIP_LIST}}</ul></div>
+</section>
+
+</div>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+(function() {
+	const textareas = Array.from(document.querySelectorAll('textarea.comment'));
+	const counter = document.getElementById('counter');
+	const btn = document.getElementById('copyBtn');
+	const toast = document.getElementById('toast');
+
+	function updateCounter() {
+		const n = textareas.filter(function(t) { return t.value.trim().length > 0; }).length;
+		counter.textContent = n === 1 ? '1 comment' : (n + ' comments');
+	}
+
+	textareas.forEach(function(t) {
+		t.addEventListener('input', function() {
+			t.classList.toggle('has-content', t.value.trim().length > 0);
+			updateCounter();
+		});
+	});
+
+	function buildMarkdown() {
+		const filled = textareas.filter(function(t) { return t.value.trim().length > 0; });
+		if (filled.length === 0) {
+			return '# Ripe Audit — Responses ({{DATE}})\n\n_No comments — accept all findings as graded._\n';
+		}
+		const lines = ['# Ripe Audit — Responses ({{DATE}})', ''];
+		lines.push('_Items not listed = accepted as graded._');
+		lines.push('');
+		filled.forEach(function(t) {
+			const id = t.getAttribute('data-id');
+			const title = t.getAttribute('data-title');
+			lines.push('## ' + id + ' — ' + title);
+			lines.push('');
+			t.value.trim().split('\n').forEach(function(l) { lines.push('> ' + l); });
+			lines.push('');
+		});
+		return lines.join('\n');
+	}
+
+	function showToast(msg) {
+		toast.textContent = msg;
+		toast.classList.add('show');
+		setTimeout(function() { toast.classList.remove('show'); }, 1400);
+	}
+
+	btn.addEventListener('click', async function() {
+		const md = buildMarkdown();
+		try {
+			await navigator.clipboard.writeText(md);
+			showToast('Copied ' + (md.split('## ').length - 1) + ' comment(s)');
+		} catch (e) {
+			showToast('Clipboard blocked — see console');
+			console.log(md);
+		}
+	});
+
+	updateCounter();
+})();
+</script>
+
+</body>
+</html>
