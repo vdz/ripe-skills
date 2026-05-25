@@ -29,6 +29,9 @@ No `undefined`. Use `null` for optional refs, `LOADING_STATES.idle` for status, 
 **5. Listeners hydrate; components don't fetch.**
 Components don't `dispatch(fetchX())` on mount. Listeners react to navigation, auth, or init signals. See [listeners.md](listeners.md#pattern-5-preemptive-hydration-via-setlocation).
 
+**6. Derived selectors are memoised — but not every prop needs a named selector.**
+Any *named* selector that returns a new array, object, or computed structure on every call must be wrapped with `createSelector` from `@reduxjs/toolkit` (already bundled). Plain function selectors are right for direct slice reads, lookups by id, and primitive returns — they're naturally reference-stable. Components don't need a named selector for every prop read; inline `useAppSelector((s) => s.x.y)` is fine for one-off direct reads. Named selectors earn their place when they're branch-level useful, derived/computed, or carry semantic meaning. See [state-shape.md](state-shape.md#selectors-and-memoisation).
+
 ## Branch File Structure
 
 ```

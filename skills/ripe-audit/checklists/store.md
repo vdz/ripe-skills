@@ -65,7 +65,7 @@ Then read the payload interface definition; flag if it has a single `boolean` fi
 
 ## STORE-M-UNMEMOIZED-SELECTOR — Derived selector without `createSelector`
 
-**Rule source:** [B1 staged proposal — to be promoted to building-ripe-store/state-shape.md]
+**Rule source:** building-ripe-store/SKILL.md cardinal rule #6 + state-shape.md → "Selectors and Memoisation"
 **Severity:** M
 **Heuristics:**
 ```
@@ -73,9 +73,11 @@ rg -nE 'export const select\w+\s*=\s*\([^)]*state[^)]*\)\s*=>' src/store | rg '(
 ```
 For each hit, check whether the selector is wrapped in `createSelector(...)` somewhere above.
 **False positives:**
-- Selectors that return a primitive (number, string, boolean).
+- Selectors that return a primitive (number, string, boolean) — including `.filter(...).length`, `.map(...).join(',')`, `.some/.every/.includes`.
 - Selectors that return an existing slice reference (`state.x.y` — no `.map`/`.filter`/etc.).
-**Fix template:** Wrap with `createSelector` from `@reduxjs/toolkit`. Pass primitive-returning input selectors. See B1 staged proposal at `_staging/selectors-proposal.md` for the full rule.
+- Selectors that return `.find(...)` — returns an existing element reference or `undefined`.
+- Inline `useAppSelector((s) => ...)` calls in components — the rule applies to NAMED selectors in `<branch>.selectors.ts`, not to one-off inline reads. The grep above already scopes to `src/store`, so inline reads in `src/components` are not in scope.
+**Fix template:** Wrap with `createSelector` from `@reduxjs/toolkit`. Pass primitive-returning input selectors. See state-shape.md → "Selectors and Memoisation" for the full rule, the "do I need to memoise?" test, and the parametric-selector pattern.
 
 ---
 
