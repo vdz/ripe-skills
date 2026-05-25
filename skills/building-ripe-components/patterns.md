@@ -120,7 +120,50 @@ Use helpers (below return) when the dispatch needs more than one line.
 
 ## Common Mistakes
 
-### Using useState for app data
+### No `useState` — Reflect Everything in the Store
+
+The Ripe rule is unambiguous: **avoid `useState` entirely**. Every piece of state — including state that feels "transient" or "ephemeral" (whether a field is being edited, the in-progress draft value, whether a popover is open) — belongs in the Redux store.
+
+Why: state that lives in a component can't be read by other features, can't survive a re-mount, can't be inspected in devtools, drifts out of sync with the global truth, and almost always grows into "wait, we need that elsewhere" 3 months later.
+
+The standard cases that LOOK like local state:
+
+| What it feels like | Where it belongs |
+|---|---|
+| "Is this field being edited?" | `current.editing: { field, draft } \| null` |
+| "What has the user typed since clicking into the field?" | Same — `current.editing.draft` |
+| "Is this popover / modal open?" | `ui.popovers.<id>` or `ui.modal` |
+| "What's the active tab?" | `ui.activeTab` |
+| "Has this row been expanded?" | `ui.expandedRows[id]` |
+| "Has the user dismissed this banner?" | `ui.dismissedBanners[id]` |
+
+In every case the answer is: dispatch an action, write to the store, render from a selector. Components are passive projections.
+
+```typescript
+// ❌ Wrong — local state for anything app-visible
+function InlineField({ value, onCommit }) {
+	const [editing, setEditing] = useState(false);
+	const [draft, setDraft] = useState(value);
+	/* ... */
+}
+
+// ✅ Correct — store-driven; component is a pure projection
+function InlineField({ field, value }) {
+	const dispatch = useAppDispatch();
+	const editing = useAppSelector(selectEditing);
+	const isEditing = editing?.field === field;
+
+	if (!isEditing) {
+		return <Display onClick={() => dispatch(beginEdit({ field, initialValue: value }))}>{value}</Display>;
+	}
+	return <EditInput value={editing.draft}
+	                  onChange={(e) => dispatch(setEditDraft({ draft: e.target.value }))}
+	                  onBlur={() => dispatch(commitEdit())} />;
+}
+```
+
+### Loading data — listeners hydrate; components don't fetch
+
 ```typescript
 // ❌ Wrong
 const [products, setProducts] = useState([]);
@@ -128,7 +171,8 @@ useEffect(() => { fetchProducts().then(setProducts) }, []);
 
 // ✅ Correct
 const productIds = useAppSelector((state) => state.products.items);
-useEffect(() => { dispatch(fetchProducts()); }, []);
+// Hydration lives in a listener that reacts to setLocation/auth/init —
+// the component just reads the result. See building-ripe-store/listeners.md.
 ```
 
 ### Logic inside component

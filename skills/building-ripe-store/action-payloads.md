@@ -49,6 +49,48 @@ If an action carries no data (e.g., `appReady`, `clearCart`), use plain `createA
 
 ---
 
+## Pass the Minimum — Listeners Read the Rest from State
+
+Action payloads carry the **minimum information needed to identify the event**. Anything the listener needs beyond that, it reads from `getState()`.
+
+```typescript
+// ❌ Wrong — payload carries the whole entity, listener doesn't need it
+dispatch(deleteDemo({ demo: state.demos.byId[shorthand] }));
+
+// ✅ Correct — payload carries the identifier; listener looks up
+dispatch(deleteDemo({ shorthand }));
+// listener reads: const demo = getState().demos.byId[shorthand];
+
+// ❌ Wrong — payload carries derived flags the listener can compute
+dispatch(saveSettings({ settings, hasChanged: !isEqual(settings, original) }));
+
+// ✅ Correct — payload is the new value; listener compares with state
+dispatch(saveSettings({ settings }));
+// listener reads: const original = getState().settings.committed;
+
+// ❌ Wrong — child passes full entity to dispatch
+<DemoCard demo={demo}
+          active={currentShorthand === demo.shorthand}
+          onClick={() => dispatch(selectDemo({ demo }))} />
+
+// ✅ Correct — child takes ID, dispatches ID, derives "active" via selector
+<DemoCard shorthand={shorthand} />
+// inside DemoCard:
+const demo = useAppSelector((s) => s.demos.byId[shorthand]);
+const active = useAppSelector((s) => s.current.shorthand === shorthand);
+```
+
+Why:
+- **Decouples the dispatch from the dispatcher's view of the world.** The dispatcher only needs to know what happened (the identifier); the listener, with full state access, figures out the consequences.
+- **Reduces coupling to entity shape.** A `{ demo: Demo }` payload breaks every dispatcher when `Demo` adds a field. A `{ shorthand }` payload is stable.
+- **Components stay tiny.** A component dispatching `addToCart({ productId })` doesn't need to read or compute anything else — the listener does the lookup. Component props collapse to identifiers.
+
+This applies equally to:
+- **Components dispatching to listeners** (children take IDs, not full entity objects).
+- **Listeners chaining further dispatches** — when listener A dispatches an intent for listener B, pass the ID, not the resolved entity. Listener B reads state itself.
+
+---
+
 ## Action Naming
 
 **Action names describe the event, not the imperative behavior or its toggle.**
@@ -62,6 +104,24 @@ If an action carries no data (e.g., `appReady`, `clearCart`), use plain `createA
 ```
 
 Two distinct events read better than one event with a hidden mode flag. Reducers don't have to branch on payload, listeners don't have to interpret state.
+
+The same rule covers any boolean-payload action — not just toggles:
+
+```
+❌ setDragActive({ dragActive: boolean })   // imperative; what was the event?
+✅ dragEntered                              // no payload — the event IS the message
+✅ dragLeft
+
+❌ setOnlineStatus({ online: boolean })
+✅ wentOnline
+✅ wentOffline
+
+❌ setLoggedIn({ loggedIn: boolean })
+✅ userLoggedIn
+✅ userLoggedOut
+```
+
+Reducer cases become two trivial assignments; the listener watching `window.online`/`window.offline` dispatches the matching event with no payload at all (the event IS the data). The `SetXPayload` interface deletes — there's no data, just a signal.
 
 ### Verb + feature + variant
 

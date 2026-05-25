@@ -5,6 +5,66 @@ description: Sets up and modifies React Router configuration following The Ripe 
 
 # Building Ripe Routing
 
+## Routes Are Feature Affordances — Design Them Early
+
+In Ripe, the URL **is part of the feature design**, not a finishing touch. Every feature decision intersects with routing:
+
+| Decision | Route impact |
+|---|---|
+| What does the user select? | Route param (`/demos/:shorthand`) |
+| What modes does the feature have? | Each mode is a route or sub-route (`/demos/new`, `/demos/:shorthand`, `/demos/:shorthand/edit`) |
+| What filters / sorts does the user pick? | Each is a query param (`?filter=...&sort=...&q=...`) |
+| When should data be hydrated? | On the `setLocation` that enters the route — see [Preemptive Hydration via Listeners](#preemptive-hydration-via-listeners) |
+| What state should reset when the user leaves? | Listeners that react to `setLocation` and clear branch state on exit |
+| What should be bookmarkable / shareable? | Anything in the URL — pick which feature-state fields earn a URL slot |
+
+**Design routes before components.** When starting a feature, map the user-visible flow to a URL tree first. The result drives:
+- The shape of `state.X` (selection IDs, mode flags, filters).
+- The listener entries that react to `setLocation` (hydrate on enter, clean up on exit, scope cross-branch UI to matching params).
+- The component composition (each route's `element:` is the entry component).
+
+### State is the source of truth — listeners reconcile URL → state
+
+The store is the **source of truth**; the URL is an external artifact that replicates some of that truth for linkability / shareability / browser-history reasons. The two are kept in sync by a listener that watches `setLocation`, identifies what the URL says, and dispatches actions to update whichever state slot needs to change.
+
+```typescript
+// ❌ Don't derive feature state from the URL at read time
+const isNewMode = useAppSelector((s) => !!matchPath('/demos/new', s.router.location?.pathname));
+
+// ✅ Keep mode in state; a listener reconciles state from setLocation
+{
+	actionCreator: setLocation,
+	effect: async (action, { dispatch, getState }) => {
+		const path = action.payload.location.pathname;
+		const state = getState();
+
+		if (matchPath('/demos/new', path)) {
+			if (state.current.mode !== 'new') dispatch(startNewDemo());
+			return;
+		}
+		// ...other matches reconcile other state slots...
+	},
+},
+```
+
+The URL changing is an **input event** like any other. The listener decides what state needs to update; reducers do the assignment. Components read state, not the URL.
+
+(Components MAY use `useParams()` for the rare case where the URL param is the only useful identifier — but they don't decide feature behaviour from the URL. The listener already updated state by the time the component renders.)
+
+### Routes drive cross-branch behaviour
+
+A feature mounting under `/demos/:shorthand` triggers several listeners off the same `setLocation`:
+- `demos.listener` hydrates the entity (`fetchDemoById` on cache miss)
+- `current.listener` sets the selection (`selectDemo({ shorthand })`)
+- `toolbar.listener` switches modes
+- `upload.listener` scopes `UploadProgress` to the matching demo via the upload-shorthand stamp
+
+All separate listeners reacting to the same `setLocation`. No single orchestrator — see [building-ripe-store/listeners.md → Pattern 7: Listener Concurrency](../building-ripe-store/listeners.md#pattern-7-listener-concurrency).
+
+### Rule of thumb
+
+**If you can describe what the user is doing by reading the URL bar alone, the feature design is on track.** If you have to inspect Redux state to know what the user is looking at, the URL is under-specified — go back to [Step 0: State Composition](../building-ripe-store/creating-a-branch.md#step-0-state-composition-is-a-human-decision) and redesign.
+
 ## File Structure
 
 All routing config lives in `src/router/`:
@@ -195,6 +255,63 @@ listenerMiddleware.startListening({
 ```
 
 Each store branch owns its own `setLocation` listener — no central route controller.
+
+## Idempotency in setLocation Listeners
+
+`setLocation` fires on every location change — including programmatic navigations and hash-only updates. Every dispatching branch in a setLocation listener must guard with a state comparison before dispatching, or arriving at the same URL twice will reset in-flight state (a draft, an active upload, a freshly-loaded entity).
+
+```typescript
+{
+	actionCreator: setLocation,
+	effect: async (action, { dispatch, getState }) => {
+		const path = action.payload.location.pathname;
+		const state = getState();
+
+		// ✅ Idempotent — guard before dispatching
+		if (matchPath('/new', path)) {
+			if (state.current.mode !== 'new') dispatch(startNewDemo());
+			return;
+		}
+
+		const m = matchPath('/:shorthand', path);
+		if (m) {
+			const shorthand = m.params.shorthand!;
+			if (state.current.shorthand !== shorthand) dispatch(selectDemo({ shorthand }));
+			return;
+		}
+	},
+},
+```
+
+The pattern is always **`if (state.x !== intendedValue) dispatch(action)`** — never unconditional dispatch inside a route-driven listener. Without the guard, the `setLocation` that fires when a child route mounts (or when the URL is set by another listener) clobbers work the first dispatch did. Each branch should `return` after handling — otherwise overlapping matches double-dispatch.
+
+### Same idempotency rule for "user left a route" listeners
+
+Listeners that fire on route-exit (cleanup, save-on-leave, autosave-flush) need the same guard. `setLocation` doesn't fire a "leaving" event — it just fires the new path. The exit listener checks "are we leaving the path we care about?" AND "did we already handle this leave?".
+
+```typescript
+{
+	actionCreator: setLocation,
+	effect: async (action, { dispatch, getState }) => {
+		const path = action.payload.location.pathname;
+		const state = getState();
+
+		// We're 'leaving' the edit flow if:
+		//   - state has an active editing session (we were on /edit)
+		//   - the new path isn't an /edit path (we've left)
+		const wasEditing   = state.current.editing !== null;
+		const stillEditing = !!matchPath('/:shorthand/edit', path);
+
+		if (wasEditing && !stillEditing) {
+			dispatch(commitEdit());   // or cancelEdit, depending on policy
+		}
+	},
+},
+```
+
+The very rare exception: a route-exit listener whose effect is **truly idempotent** (dispatching `clearTransientUiState()` is safe to call N times). Even then the guard adds clarity. Default to **guard always**; only skip if you can articulate why repetition is safe.
+
+(The `ripe-audit` skill picks up this rule as a `ROUTING-H` check — see checklists/routing.md.)
 
 ## Programmatic Navigation from Listeners
 

@@ -17,6 +17,24 @@ For deeper coverage of any step:
 
 ---
 
+## Step 0: State Composition is a Human Decision
+
+**Before writing any code for a new feature, decide the state composition with the project owner.** Not a step the agent skips because "the rest is templates" — the rest IS templates. This is the load-bearing step.
+
+What "decide the state composition" means:
+- Which branch owns the new data? (Existing branch? New branch? `app` if cross-cutting?)
+- What's the shape — does the data need the dual-structure pattern (`items` + `byId`)? A status? A filtered projection (`filteredItems`)?
+- What's the lifecycle — fetched on route enter? On app boot? On user action?
+- What's already in adjacent branches that should NOT be duplicated?
+- Where do the listeners live — same branch as the data, or cross-branch per the standard rule?
+- What's already in the URL? (Selection IDs, mode flags, filter values — see [building-ripe-routing → Routes Are Feature Affordances](../building-ripe-routing/SKILL.md#routes-are-feature-affordances--design-them-early). State remains the source of truth; a listener updates it from URL changes.)
+
+**Process:** present the proposed composition to the project owner in writing — a short markdown plan, an HTML mockup, or a verbal walkthrough. Get explicit approval. Only then start the file-by-file work in Steps 1–8 below.
+
+**The `app` branch — for cross-cutting state.** If the answer to "which branch?" is "this doesn't fit any domain entity", the cross-cutting bucket is `app` — state with a session lifecycle that's orthogonal to every domain branch: online status, locale, theme, clipboard intents, session boot status, app-init readiness. Don't put cross-cutting state in `ui` (that's transient view state) or wedge it into a domain branch (wrong owner).
+
+---
+
 ## The 8 Steps
 
 1. Create `store/<feature>/` folder

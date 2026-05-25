@@ -125,39 +125,105 @@ Switch with `document.documentElement.classList.toggle('theme-dark')` — no Rea
 
 ## Variants Pattern
 
-For **stable visual variants** that are set at the call site and don't toggle at runtime (e.g., a badge's `status`, a button's `intent`), there are two acceptable shapes. Both use CSS variables for values.
+Variants are CSS classes; the JSX picks which one applies via `className`. **No `$transient` props, ever** — even for variants you'd set once at the call site and never toggle.
 
-### Class-based (preferred! — no prop interpolation)
-
-The variants are CSS classes; the JSX selects which one is active via `className`. This exemplifies the SKILL.md rule directly.
+### Canonical example: size + intent + density + state on one button
 
 ```typescript
 // In .styled.tsx
-import styled from 'styled-components';
+export const Button = styled.button`
+	border: 0;
+	cursor: pointer;
+	transition: opacity 80ms;
 
-export const StatusBadge = styled.span`
-	padding: 4px 8px;
-	border-radius: 12px;
-	font-size: 0.75rem;
+	/* Intent — what kind of button this is */
+	&.primary   { background: var(--accent);  color: var(--card); }
+	&.secondary { background: var(--neutral); color: var(--text-primary); }
+	&.danger    { background: var(--error);   color: var(--card); }
 
-	&.active {
-		background: var(--success-light);
-		color: var(--success);
-	}
-	&.pending {
-		background: var(--warning-light);
-		color: var(--warning);
-	}
-	&.inactive {
-		background: var(--neutral-light);
-		color: var(--neutral);
-	}
+	/* Size */
+	&.size-sm { padding: 4px 10px;  font-size: 12px; }
+	&.size-md { padding: 8px 16px;  font-size: 14px; }
+	&.size-lg { padding: 12px 24px; font-size: 16px; }
+
+	/* Density */
+	&.dense { padding-block: 2px; }
+
+	/* Runtime state — toggles after mount */
+	&.disabled { opacity: 0.5; cursor: not-allowed; }
+	&.loading  { opacity: 0.7; pointer-events: none; }
 `;
 ```
 
-Usage in component JSX:
 ```typescript
-<StatusBadge className={item.status}>{item.status}</StatusBadge>
+// In the component — cn() expanded one argument per line for readability
+import cn from 'clsx';
+
+<Button
+	className={cn(
+		'primary',
+		`size-${size}`,
+		dense && 'dense',
+		isLoading && 'loading',
+		isDisabled && 'disabled',
+	)}
+>
+	{label}
+</Button>
+```
+
+### Stable variant — same shape, no exception
+
+A "stable" variant (set once, never toggled) gets the SAME className treatment as a runtime-toggled one. No special case for "this one doesn't change":
+
+```typescript
+// ✅ Even a one-shot wordmark variant is a className
+export const Wordmark = styled.div`
+	color: var(--text-primary);
+
+	&.size-l   { font-size: 96px; }
+	&.size-m   { font-size: 64px; }
+	&.on-dark  { color: var(--card); }
+`;
+<Wordmark className={cn('size-l', 'on-dark')} />
+
+// ❌ Don't do this — transient props for a "stable" variant
+const Wordmark = styled.div<{ $size: number; $onDark: boolean }>`...`;
+<Wordmark $size={96} $onDark />
+```
+
+### Why no transient props — even for stable variants
+
+- **No recompilation per prop combination.** styled-components compiles a fresh stylesheet for every distinct combination of prop values. With classes, one stylesheet serves every combination of size × intent × state across thousands of buttons.
+- **Cascade and specificity stay visible.** Class selectors play nicely with the cascade; devtools show which class is active and why a value won. Transient prop interpolations show as opaque hashes.
+- **Variants are CSS, not props.** CSS already has the language for "this thing has multiple modes" — classes. Adding a prop layer reinvents the wheel.
+- **Atomic primitives become possible.** A `<Button>` whose variants are CSS classes can ship in a shared library and stay theme-agile (consumers re-skin via CSS variables); a transient-prop `<Button>` is harder to skin without forking.
+
+### Picking one cn() form per file
+
+Use one shape per file. Don't mix `cn(...)`, template strings, and `[a, b].filter(Boolean).join(' ')` in the same component.
+
+```typescript
+// Conditional flags (multi-line for clarity once you have 3+ args)
+<Card
+	className={cn(
+		active && 'active',
+		hidden && 'hidden',
+		featured && 'featured',
+	)}
+/>
+
+// Variant from a value
+<Badge className={cn(`tone-${tone}`)} />
+
+// Combining with object shorthand
+<Button
+	className={cn(
+		'primary',
+		`size-${size}`,
+		{ disabled, loading },
+	)}
+/>
 ```
 
 ## Organizing Large Styled Files

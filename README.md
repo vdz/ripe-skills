@@ -135,14 +135,15 @@ npx ripe-skills list               # Show available skills + install status
 
 ## The Skills
 
-Four skills that teach Claude Code the complete Ripe architecture:
+Five skills that teach Claude Code the complete Ripe architecture and let it audit projects for maintenance quality:
 
-| Skill | Lines | What Claude Learns |
-|---|---|---|
-| **`ripe-init`** | 96 | Scaffold a new project: Vite, TypeScript, Redux store, routing, CLAUDE.md |
-| **`building-ripe-store`** | 148 | Store branches: actions, reducers, listeners, API functions, dual-structure state |
-| **`building-ripe-components`** | 238 | Component anatomy, semantic TSX, two-level aliases, styled-components, composition |
-| **`building-ripe-routing`** | 289 | React Router + `setLocation` bridge, preemptive hydration via listeners |
+| Skill | What Claude Learns |
+|---|---|
+| **`ripe-init`** | Scaffold a new project: Vite, TypeScript, Redux store, routing, CLAUDE.md |
+| **`building-ripe-store`** | Store branches: actions, reducers, listeners (8 patterns), API functions, dual-structure state, service-module boundary, optimistic updates |
+| **`building-ripe-components`** | Component anatomy, semantic TSX, two-level aliases, class-based styled-components, composition, no-`useState` rule, HELPERS in the component |
+| **`building-ripe-routing`** | Routes as feature affordances, React Router + `setLocation` bridge, preemptive hydration via listeners, idempotency in route listeners (entry + exit) |
+| **`ripe-audit`** | Sweep a Ripe codebase for maintenance quality. Produces an interactive HTML report at `<project>/docs/audits/` with H/M/L-graded findings the reviewer can comment on. |
 
 Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/best-practices) — all SKILL.md files under 500 lines. Reference material uses progressive disclosure (loaded only when needed):
 
@@ -171,6 +172,18 @@ ripe-init/
   config-templates.md                 Config file templates
   store-templates.md                  Store file templates
   app-templates.md                    App + routing templates
+
+ripe-audit/
+  SKILL.md                            Mission + when to use + how to run
+  grading.md                          H/M/L/OK/Skip rubric, auto-grade logic
+  runner.md                           End-to-end execution sequence
+  report-template.html                Interactive HTML report skeleton
+  checklists/
+    components.md                     Per-rule checks against building-ripe-components
+    store.md                          Per-rule checks against building-ripe-store
+    routing.md                        Per-rule checks against building-ripe-routing
+    clean-code.md                     File size, JSX depth, dead code
+    organisation.md                   Folder structure, imports, naming, tests
 ```
 
 </details>

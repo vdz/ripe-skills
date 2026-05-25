@@ -58,6 +58,41 @@ export function ProductCard({ productId }: ProductCardProps) {
 - Helpers: defined below the return statement
 - No `useEffect` for hydration/API calls. DOM manipulation only when necessary.
 
+### HELPERS Are Preferred — Module-Scope Only When Cross-Actor
+
+The HELPERS section closes over the component's reactive state (`dispatch`, selectors, props). **Prefer HELPERS** — closure access keeps related logic next to the JSX, with no plumbing or prop-drilling.
+
+Move a utility to module scope (above the component export) only if it's genuinely shared with **other actors** — another component, a listener, a test file. For single-use validators, formatters, or handlers that only fire from one component, HELPERS is the right home.
+
+```typescript
+// ✅ HELPERS — keep it next to its caller
+export function NewDemoPanel() {
+	const dispatch = useAppDispatch();
+	const draft = useAppSelector(selectDraft);
+
+	return (/* ... */);
+
+	// ═══ HELPERS ═══
+	function handleSave() {
+		if (!isValidSlug(draft.shorthand)) {
+			dispatch(showInlineError({ field: 'shorthand' }));
+			return;
+		}
+		dispatch(saveDraft());
+	}
+
+	function isValidSlug(s: string) {
+		return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(s);
+	}
+}
+
+// ✅ Module-scope (or @/utils/) — only when shared with other actors
+//    e.g. NewDemoPanel + EditDemoPanel + current.listener all need it
+export function isValidSlug(s: string) { /* ... */ }
+```
+
+If a component grows too large, the answer isn't "extract more helpers to module scope" — it's **split the component**. The `ripe-audit` skill flags heavy components and proposes split points.
+
 ### Indentation
 
 Tabs throughout — for `.tsx`, `.styled.tsx`, `.ts`. **Matches the ESLint rule (`indent: ["error", "tab"]`) enforced in the monorepo.** Configure your editor: tab width 4 is fine, but the character must be a tab.
@@ -140,6 +175,20 @@ Multi-line handlers should be extracted to SETUP.
 - **Visual separators:** CSS (`border-top`) on styled components, not `<Divider />` in JSX
 - **Clickable elements:** Must have `cursor: pointer` in styled definition
 
+### Every Interactive Element Must Dispatch (or Be Inert by Tag)
+
+Every `<button>`, `<input>`, and `<a>` in JSX must either:
+- have an `onClick` / `onChange` / `href`, OR
+- be rendered as `<span>` / `<div>` if decorative.
+
+A `<button>` with no handler typechecks, tests green, and lies to users: it looks interactive but does nothing. Treat every interactive element without a handler as a UI bug. If it's truly decorative, change the tag — decorative affordances must not LOOK interactive.
+
+Grep heuristic for PR review:
+```
+grep -nE '<(button|input|a) [^>]*>' src/components | grep -v 'onClick\|onChange\|href'
+```
+flags candidates.
+
 ## Styled Components
 
 Class-based styling, avoid prop-based. Runtime state (e.g., `disabled`, `active`, `selected`) goes on `className`; the styled component reads pure CSS that branches on that class.
@@ -156,7 +205,7 @@ export const AddToCart = styled.button`
 
 Theme tokens are CSS custom properties defined in a global `theme.css` — see [styled.md](styled.md#theming-via-css-variables).
 
-For stable visual variants set at the call site (not toggled at runtime), props are acceptable — see [styled.md](styled.md#variants-pattern).
+**Class-based styling, full stop.** No transient props (`$size`, `$active`, `$onDark`, etc.) — even for variants you'd set once at the call site. Use `className` for every variant: stable, runtime, anything. The styled component reads pure CSS that branches on classes. See [styled.md → Variants Pattern](styled.md#variants-pattern) for the canonical examples and the "why".
 
 Names describe purpose: `ProductCardWrapper` not `Container`, `AddToCart` not `Button`.
 
@@ -236,7 +285,8 @@ const branches = { b1: { result: "Return to Customer", reason: "working, no faul
 ## Component Behavior Rules
 
 - **Passive and reactive** — reads state, dispatches actions, nothing else
-- **No business logic** — no API calls, no complex decisions, no `useState` for app data
+- **Application logic lives in listeners.** Components dispatch intents; listeners own business decisions, side effects, and any resulting state/feedback (toasts, errors). Service modules (Native bridges, async persistence libraries, third-party SDKs) are exempt — their internals are blackboxes from the app's POV. See [building-ripe-store/listeners.md → Service Modules](../building-ripe-store/listeners.md#service-modules--exempt-from-all-logic-in-listeners).
+- **No business logic** — no API calls, no complex decisions, no `useState`
 - **Never trigger data loading** — data should already be in the store when rendering
 - **Navigation is OK** — `useNavigate` for user actions, `useParams` for route params
 
