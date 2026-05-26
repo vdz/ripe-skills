@@ -134,12 +134,14 @@ export const reducer = createReducer(defaultState, (builder) => {
 ## src/store/router/types.ts
 
 ```typescript
+import type { Location } from 'react-router-dom';
+
 export interface RouterState {
-  location: string;
+  location: Location | null;
 }
 
 export interface SetLocationPayload {
-  location: string;
+  location: Location;
 }
 ```
 
@@ -164,7 +166,7 @@ import type { RouterState } from './types';
 import { setLocation } from './router.actions';
 
 const defaultState: RouterState = {
-  location: '/',
+  location: null,
 };
 
 export const reducer = createReducer(defaultState, (builder) => {

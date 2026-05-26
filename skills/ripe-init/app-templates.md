@@ -14,7 +14,7 @@ import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { RouterProvider } from 'react-router-dom';
 import { store } from '@/store';
-import { router } from '@/routes/router';
+import { router } from '@/router/router';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -45,7 +45,7 @@ export function App() {
 
   // ═══ BRIDGE: Router → Store ═══
   useEffect(() => {
-    dispatch(setLocation({ location: location.pathname }));
+    dispatch(setLocation({ location }));
   }, [location]);
 
   // ═══ RETURN ═══
@@ -79,7 +79,7 @@ export { App } from './App';
 
 ---
 
-## src/routes/types.ts
+## src/router/types.ts
 
 Extends React Router's `RouteObject` with a required `name` field for the application vocabulary.
 
@@ -94,7 +94,7 @@ export interface AppRouteObject extends RouteObject {
 
 ---
 
-## src/routes/routes.tsx
+## src/router/routes.tsx
 
 Root route definition. `App` is the layout wrapper — all pages are added as `children`.
 
@@ -116,7 +116,7 @@ export const routes: AppRouteObject[] = [
 
 ---
 
-## src/routes/router.ts
+## src/router/router.ts
 
 ```typescript
 import { createHashRouter } from 'react-router-dom';

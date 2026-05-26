@@ -60,10 +60,10 @@ Work through these in order. Mark each as done before moving to the next.
 - [ ] `src/store/router/router.actions.ts` — see store-templates.md
 - [ ] `src/store/router/router.reducer.ts` — see store-templates.md
 
-### Routes
-- [ ] `src/routes/types.ts` — see app-templates.md
-- [ ] `src/routes/routes.tsx` — see app-templates.md
-- [ ] `src/routes/router.ts` — see app-templates.md
+### Router (routing config)
+- [ ] `src/router/types.ts` — see app-templates.md
+- [ ] `src/router/routes.tsx` — see app-templates.md
+- [ ] `src/router/router.ts` — see app-templates.md
 
 ### Modules
 - [ ] `src/modules/.gitkeep` — empty file, just create it
