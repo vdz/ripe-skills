@@ -14,14 +14,11 @@ In Ripe, the URL **is part of the feature design**, not a finishing touch. Every
 | What does the user select? | Route param (`/demos/:shorthand`) |
 | What modes does the feature have? | Each mode is a route or sub-route (`/demos/new`, `/demos/:shorthand`, `/demos/:shorthand/edit`) |
 | What filters / sorts does the user pick? | Each is a query param (`?filter=...&sort=...&q=...`) |
-| When should data be hydrated? | On the `setLocation` that enters the route — see [Preemptive Hydration via Listeners](#preemptive-hydration-via-listeners) |
+| When should data be hydrated? | On the `setLocation` that enters the route — see [hydration.md](hydration.md) |
 | What state should reset when the user leaves? | Listeners that react to `setLocation` and clear branch state on exit |
 | What should be bookmarkable / shareable? | Anything in the URL — pick which feature-state fields earn a URL slot |
 
-**Design routes before components.** When starting a feature, map the user-visible flow to a URL tree first. The result drives:
-- The shape of `state.X` (selection IDs, mode flags, filters).
-- The listener entries that react to `setLocation` (hydrate on enter, clean up on exit, scope cross-branch UI to matching params).
-- The component composition (each route's `element:` is the entry component).
+**Design routes before components.** When starting a feature, map the user-visible flow to a URL tree first. The result drives the shape of `state.X`, the listener entries that react to `setLocation` (hydrate on enter, clean up on exit, scope cross-branch UI to matching params), and the component composition (each route's `element:` is the entry component).
 
 ### State is the source of truth — listeners reconcile URL → state
 
@@ -85,298 +82,17 @@ store/router/
 └── types.ts
 ```
 
-## Router Setup
+## Common Tasks
 
-```typescript
-// src/router/router.ts
-import { createHashRouter } from "react-router-dom";
-import { routes } from "./routes";
-
-export const router = createHashRouter(routes); // or createBrowserRouter
-export type Router = typeof router;
-```
-
-## Route Definitions
-
-Routes use a custom `AppRouteObject` that extends React Router's type with a `name` property:
-
-```typescript
-// src/router/types.ts
-import type { RouteObject } from "react-router-dom";
-
-export interface AppRouteObject extends Omit<RouteObject, "children"> {
-  name: string;
-  children?: AppRouteObject[];
-}
-```
-
-```typescript
-// src/router/routes.tsx
-import type { AppRouteObject } from "./types";
-import { App } from "@/components/App/App";
-import { Home } from "@/components/Home/Home";
-import { Shop } from "@/components/Shop/Shop";
-import { NotFound } from "@/components/NotFound/NotFound";
-
-export const routes: AppRouteObject[] = [
-  {
-    path: "/",
-    name: "root",
-    element: <App />,
-    children: [
-      {
-        index: true,
-        name: "home",
-        element: <Home />,
-      },
-      {
-        path: "shop/:shopId",
-        name: "shop",
-        element: <Shop />,
-        children: [
-          {
-            path: "request/:requestId",
-            name: "request",
-            element: <Request />,
-          },
-          {
-            path: "add",
-            name: "add-customer",
-            element: <AddCustomer />,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    path: "*",
-    name: "not-found",
-    element: <NotFound />,
-  },
-];
-```
-
-## The Bridge: App.tsx
-
-The root `App` component bridges React Router into Redux via a single `useEffect`:
-
-```typescript
-// src/components/App/App.tsx
-import { Suspense, useEffect } from "react";
-import { Outlet, useLocation } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import { I18nextProvider } from "react-i18next";
-import { setLocation } from "@/store/router/router.actions";
-import { AppWrapper } from "./App.styled";
-import i18n from "@/i18n";
-import { AppLoader } from "@/components/AppLoader/AppLoader";
-import { useAppSelector } from "@/store/store";
-
-export function App() {
-  const location = useLocation();
-  const dispatch = useDispatch();
-
-  useEffect(() => {
-    dispatch(setLocation({ location }));
-  }, [location, dispatch]);
-
-  return (
-    <AppWrapper>
-      <I18nextProvider i18n={i18n}>
-        <Suspense fallback={<AppLoader />}>
-          <Outlet />
-        </Suspense>
-      </I18nextProvider>
-    </AppWrapper>
-  );
-}
-```
-
-This dispatches the full `Location` object (not just pathname) so listeners have access to `pathname`, `search`, `hash`, and `state`.
-
-## Router Store Branch
-
-```typescript
-// store/router/types.ts
-import type { Location } from "react-router-dom";
-
-export type RouterState = {
-  location: Location | null;
-};
-
-export interface SetLocationPayload {
-  location: Location;
-}
-```
-
-```typescript
-// store/router/router.actions.ts
-import { createAction } from "@reduxjs/toolkit";
-import type { SetLocationPayload } from "./types";
-
-export const setLocation = createAction<SetLocationPayload>("router/setLocation");
-```
-
-```typescript
-// store/router/router.reducer.ts
-import { createReducer } from "@reduxjs/toolkit";
-import type { RouterState } from "./types";
-import { setLocation } from "./router.actions";
-
-export const defaultState: RouterState = {
-  location: null,
-};
-
-export const routerReducer = createReducer<RouterState>(defaultState, (builder) => {
-  builder.addCase(setLocation, (state, action) => {
-    state.location = action.payload.location;
-  });
-});
-```
-
-## Preemptive Hydration via Listeners
-
-Feature listeners react to `setLocation` to load data before the page renders:
-
-```typescript
-// store/products/products.listeners.ts
-import { matchPath } from "react-router-dom";
-import { setLocation } from "@/store/router/router.actions";
-
-listenerMiddleware.startListening({
-  actionCreator: setLocation,
-  effect: async (action, { dispatch }) => {
-    if (matchPath("/products", action.payload.location.pathname)) {
-      const payload = await fetchProductsApi();
-      dispatch(fetchProductsSuccess(payload));
-    }
-  },
-});
-```
-
-Each store branch owns its own `setLocation` listener — no central route controller.
-
-## Idempotency in setLocation Listeners
-
-`setLocation` fires on every location change — including programmatic navigations and hash-only updates. Every dispatching branch in a setLocation listener must guard with a state comparison before dispatching, or arriving at the same URL twice will reset in-flight state (a draft, an active upload, a freshly-loaded entity).
-
-```typescript
-{
-	actionCreator: setLocation,
-	effect: async (action, { dispatch, getState }) => {
-		const path = action.payload.location.pathname;
-		const state = getState();
-
-		// ✅ Idempotent — guard before dispatching
-		if (matchPath('/new', path)) {
-			if (state.current.mode !== 'new') dispatch(startNewDemo());
-			return;
-		}
-
-		const m = matchPath('/:shorthand', path);
-		if (m) {
-			const shorthand = m.params.shorthand!;
-			if (state.current.shorthand !== shorthand) dispatch(selectDemo({ shorthand }));
-			return;
-		}
-	},
-},
-```
-
-The pattern is always **`if (state.x !== intendedValue) dispatch(action)`** — never unconditional dispatch inside a route-driven listener. Without the guard, the `setLocation` that fires when a child route mounts (or when the URL is set by another listener) clobbers work the first dispatch did. Each branch should `return` after handling — otherwise overlapping matches double-dispatch.
-
-### Same idempotency rule for "user left a route" listeners
-
-Listeners that fire on route-exit (cleanup, save-on-leave, autosave-flush) need the same guard. `setLocation` doesn't fire a "leaving" event — it just fires the new path. The exit listener checks "are we leaving the path we care about?" AND "did we already handle this leave?".
-
-```typescript
-{
-	actionCreator: setLocation,
-	effect: async (action, { dispatch, getState }) => {
-		const path = action.payload.location.pathname;
-		const state = getState();
-
-		// We're 'leaving' the edit flow if:
-		//   - state has an active editing session (we were on /edit)
-		//   - the new path isn't an /edit path (we've left)
-		const wasEditing   = state.current.editing !== null;
-		const stillEditing = !!matchPath('/:shorthand/edit', path);
-
-		if (wasEditing && !stillEditing) {
-			dispatch(commitEdit());   // or cancelEdit, depending on policy
-		}
-	},
-},
-```
-
-The very rare exception: a route-exit listener whose effect is **truly idempotent** (dispatching `clearTransientUiState()` is safe to call N times). Even then the guard adds clarity. Default to **guard always**; only skip if you can articulate why repetition is safe.
-
-(The `ripe-audit` skill picks up this rule as a `ROUTING-H` check — see checklists/routing.md.)
-
-## Programmatic Navigation from Listeners
-
-When a listener needs to navigate (e.g. after validation, after an API call), import the router directly — **never** inject `useNavigate` from a component:
-
-```typescript
-// In any listener file
-import { router } from "@/router/router";
-
-// Inside a listener effect:
-router.navigate("/summary");
-```
-
-React Router's `createBrowserRouter` / `createHashRouter` returns a router object with a public `navigate()` method. This works outside React components with no setup.
-
-**NEVER do this:**
-```typescript
-// WRONG — mutable module state, temporal coupling, weird dependency direction
-let navigate: (path: string) => void = () => {};
-export function setNavigate(fn: (path: string) => void) { navigate = fn; }
-
-// WRONG — component injecting into store layer
-useEffect(() => { setNavigate(nav); }, [nav]);
-```
-
-The injection pattern creates a mutable module variable, only works after the component mounts, and inverts the dependency direction (component → listener).
-
-## In-Component Navigation
-
-Components use `useNavigate` for user-initiated navigation and `useParams` for route params:
-
-```typescript
-export function HistoryQueue() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const shopId = useAppSelector((state) => state.shop.id);
-
-  return (
-    <QueueWrapper>
-      <QueueRow>
-        <AddBackToQueue onClick={() => navigate(`/shop/${shopId}/history/readd/${requestId}`)}>
-          {t("re-add")}
-        </AddBackToQueue>
-      </QueueRow>
-    </QueueWrapper>
-  );
-}
-```
-
-Components read route params with `useParams`, but data should already be in the store (hydrated by `setLocation` listeners):
-
-```typescript
-export function ProductDetail() {
-  const { productId } = useParams();
-  const product = useAppSelector((state) => state.products.byId[productId!]);
-
-  if (!product) return <ProductDetailSkeleton />;
-
-  return (
-    <ProductDetailWrapper>
-      <ProductTitle>{product.name}</ProductTitle>
-    </ProductDetailWrapper>
-  );
-}
-```
+| What you're doing | Read |
+|---|---|
+| Setting up routing on a fresh project | [setup.md](setup.md) |
+| Adding a new route to the tree | [setup.md](setup.md#route-definitions) |
+| Wiring `App.tsx` to the store | [setup.md](setup.md#the-bridge-apptsx) |
+| Hydrating data for a route on entry | [hydration.md](hydration.md) |
+| Cleaning up state on route exit | [hydration.md](hydration.md#same-idempotency-rule-for-user-left-a-route-listeners) |
+| Navigating programmatically from a listener | [navigation.md](navigation.md) |
+| Navigating from a component | [navigation.md](navigation.md#in-component-navigation) |
 
 ## What Belongs Where
 
@@ -403,4 +119,14 @@ Routing Progress:
 - [ ] Add setLocation listeners in feature branches for hydration
 - [ ] Verify: components don't fetch data on mount
 - [ ] Verify: useNavigate used for user navigation, not data loading
+- [ ] Verify: every dispatching branch in setLocation listeners has an idempotency guard
 ```
+
+## References
+
+| Document | When to read | What's covered |
+|---|---|---|
+| [setup.md](setup.md) | Setting up routing or adding routes | Router instance, route definitions, App.tsx bridge, router store branch |
+| [hydration.md](hydration.md) | Wiring data hydration to routes | Preemptive hydration via listeners, idempotency rules for entry and exit listeners |
+| [navigation.md](navigation.md) | Navigating programmatically or from components | `router.navigate` from listeners, `useNavigate` + `useParams` in components |
+| `building-ripe-store` skill | Listener patterns the routing skill builds on | Pattern 5 (preemptive hydration), Pattern 7 (concurrency), cardinal rule #5 |
