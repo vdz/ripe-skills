@@ -135,7 +135,7 @@ npx ripe-skills list               # Show available skills + install status
 
 ## The Skills
 
-Five skills that teach Claude Code the complete Ripe architecture and let it audit projects for maintenance quality:
+Six skills that teach Claude Code the complete Ripe architecture, test it, and audit projects for maintenance quality:
 
 | Skill | What Claude Learns |
 |---|---|
@@ -143,6 +143,7 @@ Five skills that teach Claude Code the complete Ripe architecture and let it aud
 | **`building-ripe-store`** | Store branches: actions, reducers, listeners (8 patterns), API functions, dual-structure state, service-module boundary, optimistic updates |
 | **`building-ripe-components`** | Component anatomy, semantic TSX, two-level aliases, class-based styled-components, composition, no-`useState` rule, HELPERS in the component |
 | **`building-ripe-routing`** | Routes as feature affordances, React Router + `setLocation` bridge, preemptive hydration via listeners, idempotency in route listeners (entry + exit) |
+| **`building-ripe-tests`** | Reducer tests, listener tests via `makeTestHarness`, behaviour-level component tests with RTL. Five cardinal rules; explicit scope refusals (no snapshots, no e2e, no coverage thresholds). |
 | **`ripe-audit`** | Sweep a Ripe codebase for maintenance quality. Produces an interactive HTML report at `<project>/docs/audits/` with H/M/L-graded findings the reviewer can comment on. |
 
 Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/best-practices) — all SKILL.md files under 500 lines. Reference material uses progressive disclosure (loaded only when needed):
@@ -182,8 +183,15 @@ ripe-audit/
     components.md                     Per-rule checks against building-ripe-components
     store.md                          Per-rule checks against building-ripe-store
     routing.md                        Per-rule checks against building-ripe-routing
+    tests.md                          Test-quality drift (missing tests, snapshots, hand-rolled stores)
     clean-code.md                     File size, JSX depth, dead code
     organisation.md                   Folder structure, imports, naming, tests
+
+building-ripe-tests/
+  SKILL.md                            5 cardinal rules + the harness + scope refusals
+  reducer-tests.md                    Pure state transitions
+  listener-tests.md                   makeTestHarness, vi.resetModules, debounce, service modules
+  component-tests.md                  RTL + Provider + harness; dispatch assertions; fireEvent for <select>
 ```
 
 </details>

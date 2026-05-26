@@ -311,3 +311,4 @@ const branches = { b1: { result: "Return to Customer", reason: "working, no faul
 **For detailed patterns**: See [patterns.md](patterns.md)
 **For styled naming conventions**: See [styled.md](styled.md)
 **For routing**: See building-ripe-routing skill
+**For tests**: See `building-ripe-tests` skill (→ component-tests.md)

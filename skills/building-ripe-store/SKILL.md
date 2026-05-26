@@ -136,7 +136,7 @@ Store Branch Progress:
 - [ ] Create [feature].reducer.ts: defaultState + simple assignment cases
 - [ ] Create api/[verb][Feature].ts: fetch + format response if needed
 - [ ] Create [feature].listener.ts: export Listener[] with business logic + error handling
-- [ ] Create __tests__/[feature].reducer.test.ts: test state transitions
+- [ ] Create __tests__/[feature].reducer.test.ts + [feature].listener.test.ts — see `building-ripe-tests`
 - [ ] Register reducer in store.ts configureStore
 - [ ] Register listener array in listener.ts initAppListeners
 - [ ] Verify: reducer has no if statements or API calls
