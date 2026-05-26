@@ -1,6 +1,6 @@
 ---
 name: building-ripe-store
-description: Creates and modifies Redux store branches following The Ripe Method architecture. Use when adding state management, creating Redux slices, writing actions/reducers/listeners, or building API functions. Covers store structure, state shape, listeners, and the data flow cycle. For full features requiring both state and UI, pair with building-ripe-components.
+description: Creates and modifies Redux store branches following The Ripe Method architecture. Mainly responsible for application business logic. Use when adding or changing application features, adding state management, creating Redux branches, writing actions/reducers/listeners, or building API functions. Covers architectural thinking, store structure, state shape, listeners, and the data flow cycle. For full features requiring both state and UI, pair with building-ripe-components and building-ripe-routing.
 ---
 
 # Building Ripe Store Branches

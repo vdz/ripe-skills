@@ -1,6 +1,6 @@
 ---
 name: building-ripe-components
-description: Creates and modifies React components following The Ripe Method architecture. Use when creating new components, editing existing components, or adding UI features. Covers component anatomy, types, styled components, and file structure. For full features requiring both state and UI, pair with building-ripe-store.
+description: Creates and modifies React components following The Ripe Method architecture. Use when creating new components, editing existing components, or adding UI features. Covers component anatomy, types, styled components, and file structure. For full features, pair with building-ripe-store for state and building-ripe-routing for navigation.
 ---
 
 # Building Ripe Components
