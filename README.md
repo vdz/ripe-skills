@@ -135,7 +135,7 @@ npx ripe-skills list               # Show available skills + install status
 
 ## The Skills
 
-Six skills that teach Claude Code the complete Ripe architecture, test it, and audit projects for maintenance quality:
+Seven skills that teach Claude Code the complete Ripe architecture, test it, audit it, and explain it:
 
 | Skill | What Claude Learns |
 |---|---|
@@ -145,6 +145,7 @@ Six skills that teach Claude Code the complete Ripe architecture, test it, and a
 | **`building-ripe-routing`** | Routes as feature affordances, React Router + `setLocation` bridge, preemptive hydration via listeners, idempotency in route listeners (entry + exit) |
 | **`building-ripe-tests`** | Reducer tests, listener tests via `makeTestHarness`, behaviour-level component tests with RTL. Five cardinal rules; explicit scope refusals (no snapshots, no e2e, no coverage thresholds). |
 | **`ripe-audit`** | Sweep a Ripe codebase for maintenance quality. Produces an interactive HTML report at `<project>/docs/audits/` with H/M/L-graded findings the reviewer can comment on. |
+| **`ripe-overview`** | Reads the project and writes about it. A magazine-column-style HTML at `<project>/docs/overview/` with current state, history, simplicity radar (state / logic / TSX / routing / docs), and leverage picks. Auto dark/light mode by local hour. |
 
 Skills follow [Anthropic's best practices](https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/best-practices) — all SKILL.md files under 500 lines. Reference material uses progressive disclosure (loaded only when needed):
 
@@ -192,6 +193,11 @@ building-ripe-tests/
   reducer-tests.md                    Pure state transitions
   listener-tests.md                   makeTestHarness, vi.resetModules, debounce, service modules
   component-tests.md                  RTL + Provider + harness; dispatch assertions; fireEvent for <select>
+
+ripe-overview/
+  SKILL.md                            Mission, signals, simplicity rubric, output schema
+  writing-style.md                    Voice rules (tenses, banned AI-isms, length budgets, examples)
+  report-template.html                Beautiful 3-section narrative + simplicity radar; auto dark/light by hour
 ```
 
 </details>

@@ -1,0 +1,459 @@
+<!doctype html>
+<!--
+Ripe Overview report template.
+
+Placeholders to fill at generation time:
+  {{PROJECT_NAME}}     "mce-demo-portal"
+  {{BRANCH}}           "develop"
+  {{COMMIT}}           short SHA "3387a8c"
+  {{TIMESTAMP}}        "2026-05-26 14:32"
+
+  {{BLOCK_WHERE_YOU_ARE_P1}}    ~50 words, present tense
+  {{BLOCK_WHERE_YOU_ARE_P2}}    ~50 words, present tense
+  {{BLOCK_WHERE_YOU_BEEN_P1}}   ~60 words, past tense
+  {{BLOCK_WHERE_YOU_BEEN_P2}}   ~40 words, past tense
+  {{BLOCK_GO_INTRO}}            ~20 words
+  {{BLOCK_GO_LIST_ITEMS}}       3-5 <li> entries
+  {{BLOCK_GO_CLOSING}}          ~30 words, committed
+
+  Simplicity dimensions — each is a 0-100 integer + one-line interpretation:
+  {{S_STATE_VAL}}   {{S_STATE_LINE}}
+  {{S_LOGIC_VAL}}   {{S_LOGIC_LINE}}
+  {{S_TSX_VAL}}     {{S_TSX_LINE}}
+  {{S_ROUTING_VAL}} {{S_ROUTING_LINE}}
+  {{S_DOCS_VAL}}    {{S_DOCS_LINE}}
+  {{S_COMPOSITE_VAL}}  composite 0-100
+
+  {{FOOTER_RUNTIME}}            "~12s"
+  {{FOOTER_INPUTS}}             "6 store branches, 17 components, 4 audit reports..."
+  {{REACT_MAJOR}}               "19"
+  {{RTK_MAJOR}}                 "2.x"
+
+JS notes:
+  - All <script> uses literal characters (no entity-escaping).
+  - Auto dark/light based on local hour (6-18 light, otherwise dark).
+  - Manual toggle button overrides; preference stored in localStorage for the session.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ripe Overview · {{PROJECT_NAME}} · {{TIMESTAMP}}</title>
+<style>
+:root {
+	--bg:           #f8f6ef;
+	--panel:        #fffefa;
+	--ink:          #1a1815;
+	--ink-soft:     #3a342b;
+	--muted:        #74695a;
+	--rule:         #e6dfce;
+	--rule-strong:  #d2c9b3;
+	--accent:       #7d4f2b;
+	--accent-soft:  #f1e5d4;
+	--good:         #4f7e54;
+	--good-soft:    #e3eee0;
+	--warn:         #b8531f;
+	--warn-soft:    #f8e2cd;
+	--bad:          #b34a3e;
+	--bad-soft:     #f5dad4;
+	--info:         #335a78;
+	--info-soft:    #dde9f2;
+	--radar-fill:   rgba(125, 79, 43, 0.18);
+	--radar-stroke: #7d4f2b;
+	--radar-grid:   #d2c9b3;
+	--radar-axis:   #74695a;
+	--code-bg:      #efe9d8;
+	--code-ink:    #2a241b;
+	--shadow:       0 1px 0 rgba(0,0,0,.03), 0 2px 14px rgba(0,0,0,.06);
+	--font-prose: "Iowan Old Style", "Charter", ui-serif, Georgia, serif;
+	--font-ui:    -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+	--font-mono:  ui-monospace, "JetBrains Mono", Menlo, "SF Mono", Consolas, monospace;
+}
+:root.dark {
+	--bg:           #14110d;
+	--panel:        #1d1a14;
+	--ink:          #ece2cf;
+	--ink-soft:     #c9bea7;
+	--muted:        #8a8170;
+	--rule:         #2f2920;
+	--rule-strong:  #3f382c;
+	--accent:       #d28a3a;
+	--accent-soft:  #2a2118;
+	--good:         #88b793;
+	--good-soft:    #1d2820;
+	--warn:         #e0a574;
+	--warn-soft:    #2a2218;
+	--bad:          #d9836f;
+	--bad-soft:     #2c1f1a;
+	--info:         #7eafd1;
+	--info-soft:    #1a242d;
+	--radar-fill:   rgba(210, 138, 58, 0.22);
+	--radar-stroke: #d28a3a;
+	--radar-grid:   #3f382c;
+	--radar-axis:   #8a8170;
+	--code-bg:      #221d15;
+	--code-ink:     #d9cfbb;
+	--shadow:       0 1px 0 rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--font-prose); transition: background 0.4s ease, color 0.4s ease; }
+body { font-size: 17px; line-height: 1.65; -webkit-font-smoothing: antialiased; }
+.shell { max-width: 920px; margin: 0 auto; padding: 0 32px 100px; }
+
+/* Top bar */
+header.top {
+	display: flex; justify-content: space-between; align-items: center;
+	padding: 22px 0 18px; margin: 0 0 36px;
+	border-bottom: 1px solid var(--rule);
+	font-family: var(--font-mono); font-size: 12px;
+	color: var(--muted); letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+header.top .meta .proj { color: var(--accent); font-weight: 700; }
+header.top .meta .branch { color: var(--ink-soft); margin-left: 12px; }
+header.top .meta .ts { color: var(--muted); margin-left: 12px; }
+header.top button.toggle {
+	font: inherit; cursor: pointer;
+	background: transparent; color: var(--muted);
+	border: 1px solid var(--rule-strong); border-radius: 999px;
+	padding: 4px 12px; font-size: 11px; letter-spacing: 0.06em;
+	transition: all 0.2s ease;
+}
+header.top button.toggle:hover { color: var(--ink); border-color: var(--accent); }
+
+/* Section headings */
+h2 {
+	font-family: var(--font-ui); font-weight: 600; font-size: 12px;
+	letter-spacing: 0.14em; text-transform: uppercase;
+	color: var(--accent);
+	margin: 56px 0 18px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--rule);
+}
+h2:first-of-type { margin-top: 8px; }
+
+/* Prose paragraphs */
+p { margin: 0 0 18px; font-size: 17px; line-height: 1.7; color: var(--ink-soft); }
+p strong { color: var(--ink); font-weight: 600; }
+p em { font-style: italic; color: var(--accent); }
+p code, li code { font-family: var(--font-mono); font-size: 0.86em; background: var(--code-bg); color: var(--code-ink); padding: 1px 6px; border-radius: 3px; }
+
+/* Drop cap on first paragraph of each section */
+h2 + p::first-letter {
+	font-family: var(--font-prose);
+	font-size: 3.4em; float: left; line-height: 0.9;
+	margin: 4px 8px 0 0; color: var(--accent);
+	font-weight: 400;
+}
+
+/* Where you might go — list */
+ol.threads { padding-left: 28px; margin: 0 0 18px; counter-reset: thread; list-style: none; }
+ol.threads li {
+	margin-bottom: 14px; font-size: 16px; line-height: 1.6;
+	color: var(--ink-soft); position: relative;
+	padding-left: 4px;
+	counter-increment: thread;
+}
+ol.threads li::before {
+	content: counter(thread, decimal-leading-zero);
+	position: absolute; left: -28px; top: 0;
+	font-family: var(--font-mono); font-size: 11px;
+	color: var(--accent); font-weight: 700;
+	letter-spacing: 0.04em;
+}
+ol.threads li strong { color: var(--ink); font-weight: 600; }
+ol.threads li code { font-size: 0.85em; }
+
+/* Closing pick — slightly emphasised */
+.pick {
+	margin-top: 24px; padding: 16px 22px;
+	background: var(--accent-soft);
+	border-left: 3px solid var(--accent);
+	border-radius: 0 6px 6px 0;
+	font-size: 17px; line-height: 1.55;
+	color: var(--ink);
+}
+.pick strong { color: var(--accent); }
+
+/* Simplicity block */
+.simplicity {
+	display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+	align-items: center;
+	background: var(--panel);
+	border: 1px solid var(--rule);
+	border-radius: 12px;
+	padding: 28px 32px;
+	margin: 24px 0 12px;
+	box-shadow: var(--shadow);
+}
+@media (max-width: 760px) { .simplicity { grid-template-columns: 1fr; } }
+
+.simplicity .chart-wrap { display: flex; flex-direction: column; align-items: center; }
+.simplicity .composite {
+	font-family: var(--font-ui); font-size: 64px; font-weight: 700;
+	color: var(--accent); line-height: 1;
+	letter-spacing: -0.03em;
+	margin-bottom: 4px;
+}
+.simplicity .composite-label {
+	font-family: var(--font-ui); font-size: 11px;
+	color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em;
+	margin-bottom: 18px;
+}
+
+.simplicity .radar { width: 280px; height: 280px; max-width: 100%; }
+.simplicity .radar circle.grid { fill: none; stroke: var(--radar-grid); stroke-width: 1; opacity: 0.5; }
+.simplicity .radar line.axis { stroke: var(--radar-grid); stroke-width: 1; opacity: 0.5; }
+.simplicity .radar polygon.data { fill: var(--radar-fill); stroke: var(--radar-stroke); stroke-width: 2; }
+.simplicity .radar circle.point { fill: var(--radar-stroke); }
+.simplicity .radar text.label { font-family: var(--font-ui); font-size: 11px; fill: var(--muted); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+
+.simplicity .breakdown { display: flex; flex-direction: column; gap: 14px; }
+.simplicity .dim { display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: baseline; }
+.simplicity .dim .val { font-family: var(--font-ui); font-size: 28px; font-weight: 700; line-height: 1; color: var(--accent); text-align: right; }
+.simplicity .dim .info .name { font-family: var(--font-ui); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.simplicity .dim .info .desc { font-size: 14px; color: var(--ink-soft); line-height: 1.4; }
+
+/* Footer */
+footer.meta {
+	margin-top: 72px; padding-top: 18px;
+	border-top: 1px solid var(--rule);
+	font-family: var(--font-mono); font-size: 11px;
+	color: var(--muted); letter-spacing: 0.03em;
+	line-height: 1.6;
+}
+footer.meta .dot { margin: 0 8px; opacity: 0.4; }
+
+/* Title */
+.title-block {
+	margin-bottom: 8px;
+	text-align: left;
+}
+.title-block .title {
+	font-family: var(--font-prose); font-size: 36px; font-weight: 400;
+	letter-spacing: -0.02em; line-height: 1.1;
+	color: var(--ink);
+	margin: 0 0 6px;
+}
+.title-block .subtitle {
+	font-family: var(--font-ui); font-size: 13px;
+	color: var(--muted); letter-spacing: 0.04em;
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+<header class="top">
+	<div class="meta">
+		<span class="proj">{{PROJECT_NAME}}</span>
+		<span class="branch">{{BRANCH}} @ {{COMMIT}}</span>
+		<span class="ts">{{TIMESTAMP}}</span>
+	</div>
+	<button class="toggle" id="modeToggle" aria-label="Toggle dark/light mode">
+		<span id="modeLabel">Auto</span>
+	</button>
+</header>
+
+<div class="title-block">
+	<h1 class="title">Ripe Overview</h1>
+	<div class="subtitle">A magazine column about the state of this codebase.</div>
+</div>
+
+<section>
+	<h2>Where you are</h2>
+	<p>{{BLOCK_WHERE_YOU_ARE_P1}}</p>
+	<p>{{BLOCK_WHERE_YOU_ARE_P2}}</p>
+</section>
+
+<section>
+	<h2>Simplicity</h2>
+	<div class="simplicity">
+		<div class="chart-wrap">
+			<div class="composite">{{S_COMPOSITE_VAL}}</div>
+			<div class="composite-label">Composite · 0–100</div>
+			<svg class="radar" viewBox="-160 -160 320 320" aria-label="Simplicity radar chart">
+				<!-- Concentric grid circles -->
+				<circle class="grid" r="120" />
+				<circle class="grid" r="90" />
+				<circle class="grid" r="60" />
+				<circle class="grid" r="30" />
+				<!-- Axes — five-pointed star (top, top-right, bottom-right, bottom-left, top-left) -->
+				<!-- Angles: -90° (top), -18°, 54°, 126°, -162° (going clockwise from top) -->
+				<line class="axis" x1="0" y1="0" x2="0"      y2="-120" />
+				<line class="axis" x1="0" y1="0" x2="114.13" y2="-37.08" />
+				<line class="axis" x1="0" y1="0" x2="70.53"  y2="97.08" />
+				<line class="axis" x1="0" y1="0" x2="-70.53" y2="97.08" />
+				<line class="axis" x1="0" y1="0" x2="-114.13" y2="-37.08" />
+				<!-- Data polygon — five points scaled by per-dimension score (0–100 → 0–120) -->
+				<polygon class="data" id="radarPolygon" points="0,-120 114,-37 71,97 -71,97 -114,-37" />
+				<!-- Dimension labels (positioned just past 120 radius) -->
+				<text class="label" x="0"     y="-138" text-anchor="middle">State</text>
+				<text class="label" x="138"   y="-42"  text-anchor="start">Logic</text>
+				<text class="label" x="85"   y="120"  text-anchor="middle">TSX</text>
+				<text class="label" x="-85"  y="120"  text-anchor="middle">Routing</text>
+				<text class="label" x="-138"  y="-42"  text-anchor="end">Docs</text>
+			</svg>
+		</div>
+		<div class="breakdown">
+			<div class="dim">
+				<div class="val">{{S_STATE_VAL}}</div>
+				<div class="info">
+					<div class="name">State management</div>
+					<div class="desc">{{S_STATE_LINE}}</div>
+				</div>
+			</div>
+			<div class="dim">
+				<div class="val">{{S_LOGIC_VAL}}</div>
+				<div class="info">
+					<div class="name">Business logic</div>
+					<div class="desc">{{S_LOGIC_LINE}}</div>
+				</div>
+			</div>
+			<div class="dim">
+				<div class="val">{{S_TSX_VAL}}</div>
+				<div class="info">
+					<div class="name">TSX structure</div>
+					<div class="desc">{{S_TSX_LINE}}</div>
+				</div>
+			</div>
+			<div class="dim">
+				<div class="val">{{S_ROUTING_VAL}}</div>
+				<div class="info">
+					<div class="name">Routing</div>
+					<div class="desc">{{S_ROUTING_LINE}}</div>
+				</div>
+			</div>
+			<div class="dim">
+				<div class="val">{{S_DOCS_VAL}}</div>
+				<div class="info">
+					<div class="name">Documentation</div>
+					<div class="desc">{{S_DOCS_LINE}}</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section>
+	<h2>Where you've been</h2>
+	<p>{{BLOCK_WHERE_YOU_BEEN_P1}}</p>
+	<p>{{BLOCK_WHERE_YOU_BEEN_P2}}</p>
+</section>
+
+<section>
+	<h2>Where you might go</h2>
+	<p>{{BLOCK_GO_INTRO}}</p>
+	<ol class="threads">
+		{{BLOCK_GO_LIST_ITEMS}}
+	</ol>
+	<div class="pick">{{BLOCK_GO_CLOSING}}</div>
+</section>
+
+<footer class="meta">
+	Overview run · {{FOOTER_RUNTIME}} <span class="dot">·</span> inputs: {{FOOTER_INPUTS}} <span class="dot">·</span> React {{REACT_MAJOR}} <span class="dot">·</span> RTK {{RTK_MAJOR}} <span class="dot">·</span> next refresh: anytime
+</footer>
+
+</div>
+
+<script>
+(function() {
+	const root = document.documentElement;
+	const toggle = document.getElementById('modeToggle');
+	const label = document.getElementById('modeLabel');
+	const STORAGE_KEY = 'ripe-overview-mode';
+
+	function autoModeForHour(hour) {
+		// Light from 6am to 6pm local time; dark otherwise.
+		return (hour >= 6 && hour < 18) ? 'light' : 'dark';
+	}
+
+	function applyMode(mode) {
+		if (mode === 'dark') {
+			root.classList.add('dark');
+		} else {
+			root.classList.remove('dark');
+		}
+	}
+
+	function refreshLabel(state) {
+		// state: 'auto-light' | 'auto-dark' | 'light' | 'dark'
+		if (state.indexOf('auto') === 0) {
+			label.textContent = 'Auto · ' + state.split('-')[1];
+		} else {
+			label.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+		}
+	}
+
+	const stored = localStorage.getItem(STORAGE_KEY);
+	const hour = new Date().getHours();
+	const auto = autoModeForHour(hour);
+
+	let mode;
+	if (stored === 'light' || stored === 'dark') {
+		mode = stored;
+		applyMode(mode);
+		refreshLabel(mode);
+	} else {
+		mode = 'auto-' + auto;
+		applyMode(auto);
+		refreshLabel(mode);
+	}
+
+	toggle.addEventListener('click', function() {
+		// Cycle: auto-X → light → dark → auto-X
+		if (mode.indexOf('auto') === 0) {
+			mode = 'light';
+		} else if (mode === 'light') {
+			mode = 'dark';
+		} else {
+			mode = 'auto-' + autoModeForHour(new Date().getHours());
+			localStorage.removeItem(STORAGE_KEY);
+			applyMode(mode.split('-')[1]);
+			refreshLabel(mode);
+			return;
+		}
+		localStorage.setItem(STORAGE_KEY, mode);
+		applyMode(mode);
+		refreshLabel(mode);
+	});
+
+	// Update the radar polygon from the per-dimension data values.
+	// The order matches the SVG label order: State (top), Logic (top-right),
+	// TSX (bottom-right), Routing (bottom-left), Docs (top-left).
+	const values = {
+		state:   parseFloat('{{S_STATE_VAL}}'),
+		logic:   parseFloat('{{S_LOGIC_VAL}}'),
+		tsx:     parseFloat('{{S_TSX_VAL}}'),
+		routing: parseFloat('{{S_ROUTING_VAL}}'),
+		docs:    parseFloat('{{S_DOCS_VAL}}'),
+	};
+
+	// Polygon vertices at angles -90, -18, 54, 126, -162 (degrees from x-axis).
+	// Pre-computed unit vectors (cos, sin) for each:
+	const axes = [
+		{ key: 'state',   x:  0.0000, y: -1.0000 },
+		{ key: 'logic',   x:  0.9511, y: -0.3090 },
+		{ key: 'tsx',     x:  0.5878, y:  0.8090 },
+		{ key: 'routing', x: -0.5878, y:  0.8090 },
+		{ key: 'docs',    x: -0.9511, y: -0.3090 },
+	];
+
+	const polygon = document.getElementById('radarPolygon');
+	if (polygon && !isNaN(values.state)) {
+		const points = axes.map(function(ax) {
+			const v = values[ax.key];
+			const r = (isNaN(v) ? 0 : Math.max(0, Math.min(100, v))) * 1.2; // 0-120 radius
+			const x = (ax.x * r).toFixed(2);
+			const y = (ax.y * r).toFixed(2);
+			return x + ',' + y;
+		}).join(' ');
+		polygon.setAttribute('points', points);
+	}
+})();
+</script>
+
+</body>
+</html>
