@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ripe-skills system audit · 2026-05-26</title>
+<style>
+:root {
+	--bg: #fafaf7;
+	--panel: #ffffff;
+	--ink: #1c1c1a;
+	--muted: #6c6b66;
+	--rule: #e6e3dc;
+	--rule-strong: #d2cec5;
+	--accent: #7d4f2b;
+	--accent-soft: #f2e8df;
+	--good: #2f7a4c;
+	--good-soft: #e6f1ea;
+	--bad: #c7523b;
+	--bad-soft: #fbe7e2;
+	--warn: #b8531f;
+	--warn-soft: #fbe9d8;
+	--info: #1f5a8c;
+	--info-soft: #e3eef7;
+	--code-bg: #f4f1ea;
+	--code-ink: #221f1a;
+	--font-prose: ui-serif, "Iowan Old Style", "Charter", Georgia, serif;
+	--font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	--font-mono: ui-monospace, "JetBrains Mono", Menlo, "SF Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--font-prose); }
+body { font-size: 16px; line-height: 1.6; }
+.shell { max-width: 1180px; margin: 0 auto; padding: 0 24px 120px; }
+
+header.top {
+	position: sticky; top: 0; z-index: 50;
+	background: rgba(250,250,247,.94);
+	backdrop-filter: saturate(140%) blur(6px);
+	border-bottom: 1px solid var(--rule);
+	margin: 0 -24px 28px;
+	padding: 14px 24px;
+}
+.top-row { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+.top-row h1 { font-size: 20px; margin: 0; font-family: var(--font-ui); font-weight: 600; letter-spacing: -.01em; }
+.top-row .sub { color: var(--muted); font-size: 13px; font-family: var(--font-ui); }
+.top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; font-family: var(--font-ui); font-size: 13px; }
+.counter { color: var(--muted); }
+button.copy-btn { font: inherit; cursor: pointer; background: var(--ink); color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; font-weight: 600; }
+button.copy-btn:hover { background: #2a2926; }
+button.copy-btn.ok { background: var(--good); }
+
+h2 { font-family: var(--font-ui); font-size: 22px; font-weight: 600; margin: 44px 0 6px; letter-spacing: -.01em; }
+h2:first-of-type { margin-top: 4px; }
+h3 { font-family: var(--font-ui); font-size: 16px; font-weight: 600; margin: 22px 0 8px; }
+p { margin: 0 0 12px; }
+
+.lede { font-size: 18px; line-height: 1.55; color: #2a2926; }
+.muted-note { color: var(--muted); font-size: 14px; font-family: var(--font-ui); }
+
+.tldr {
+	background: var(--panel);
+	border: 1px solid var(--rule);
+	border-left: 4px solid var(--accent);
+	border-radius: 10px;
+	padding: 22px 26px;
+	margin-bottom: 30px;
+	box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.04);
+}
+.tldr h2 { margin: 0 0 8px; font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.tldr .verdict { font-size: 19px; line-height: 1.5; margin: 6px 0 10px; font-family: var(--font-prose); }
+.tldr p { margin: 6px 0 0; }
+.tldr .badges { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+
+.tag { display: inline-block; font-family: var(--font-ui); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .04em; text-transform: uppercase; }
+.tag.good { background: var(--good-soft); color: var(--good); }
+.tag.bad  { background: var(--bad-soft); color: var(--bad); }
+.tag.info { background: var(--info-soft); color: var(--info); }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+
+/* Dashboard */
+.dash {
+	display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+	margin: 14px 0 24px;
+}
+@media (max-width: 920px) { .dash { grid-template-columns: 1fr 1fr; } }
+.dash .skill {
+	background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+	padding: 14px 16px; box-shadow: 0 1px 0 rgba(0,0,0,.04);
+}
+.dash .skill .name { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.dash .skill .stat { font-family: var(--font-ui); font-size: 26px; font-weight: 700; line-height: 1; margin: 8px 0 2px; }
+.dash .skill .lbl { font-family: var(--font-ui); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.dash .skill .health { font-family: var(--font-ui); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-top: 8px; padding: 2px 6px; border-radius: 3px; display: inline-block; }
+.dash .skill .health.good { background: var(--good-soft); color: var(--good); }
+.dash .skill .health.warn { background: var(--warn-soft); color: var(--warn); }
+.dash .skill .health.bad  { background: var(--bad-soft); color: var(--bad); }
+
+/* Bar chart */
+.bars { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 22px; margin: 12px 0 20px; }
+.bars .row { display: grid; grid-template-columns: 200px 1fr 60px; align-items: center; gap: 12px; margin-bottom: 8px; font-family: var(--font-ui); font-size: 13px; }
+.bars .row .label { font-family: var(--font-mono); font-size: 12.5px; }
+.bars .row .track { background: #ede8de; height: 16px; border-radius: 4px; position: relative; overflow: hidden; }
+.bars .row .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 4px; }
+.bars .row .fill.good { background: var(--good); }
+.bars .row .fill.warn { background: var(--warn); }
+.bars .row .fill.bad  { background: var(--bad); }
+.bars .row .val { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); text-align: right; }
+.bars .threshold { font-size: 12px; color: var(--muted); font-style: italic; margin-top: 8px; font-family: var(--font-ui); }
+.bars .threshold-mark { position: absolute; top: -4px; bottom: -4px; border-left: 2px dashed var(--bad); }
+
+/* Matrix table */
+table.matrix {
+	width: 100%; border-collapse: separate; border-spacing: 0;
+	background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+	overflow: hidden; margin: 12px 0 24px; font-size: 14px;
+}
+table.matrix th, table.matrix td {
+	padding: 10px 14px; text-align: left;
+	border-bottom: 1px solid var(--rule);
+	font-family: var(--font-ui); vertical-align: top;
+}
+table.matrix th { background: #f7f4ec; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+table.matrix tr:last-child td { border-bottom: 0; }
+table.matrix code { font-family: var(--font-mono); font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+table.matrix .risk-low  { color: var(--good); font-weight: 700; }
+table.matrix .risk-med  { color: var(--warn); font-weight: 700; }
+table.matrix .risk-high { color: var(--bad);  font-weight: 700; }
+
+/* Cross-ref graph */
+.graph {
+	background: var(--panel); border: 1px solid var(--rule); border-radius: 12px;
+	padding: 24px; margin: 12px 0 24px;
+	font-family: var(--font-mono); font-size: 13px; line-height: 1.5;
+	white-space: pre; overflow-x: auto;
+	color: var(--ink);
+}
+.graph .node-h { color: var(--accent); font-weight: 700; }
+.graph .arrow { color: var(--info); }
+.graph .miss { color: var(--bad); font-weight: 700; }
+
+/* Checklist */
+.checklist { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 24px; margin: 12px 0 20px; }
+.checklist ul { padding-left: 0; margin: 0; list-style: none; }
+.checklist li { padding: 6px 0; font-size: 14px; font-family: var(--font-ui); border-bottom: 1px dashed var(--rule); }
+.checklist li:last-child { border-bottom: 0; }
+.checklist li::before { display: inline-block; width: 22px; font-weight: 700; }
+.checklist li.pass::before { content: "✓"; color: var(--good); }
+.checklist li.fail::before { content: "✗"; color: var(--bad); }
+.checklist li.partial::before { content: "~"; color: var(--warn); }
+.checklist li .note { color: var(--muted); font-size: 13px; }
+.checklist li code { font-family: var(--font-mono); font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+
+/* Per-skill panel */
+.skill-card {
+	background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+	padding: 18px 22px; margin-bottom: 16px;
+}
+.skill-card.h { border-left: 4px solid var(--bad); }
+.skill-card.m { border-left: 4px solid var(--warn); }
+.skill-card.l { border-left: 4px solid var(--info); }
+.skill-card h3 { margin-top: 0; }
+.skill-card .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.skill-card .row > div h4 { font-family: var(--font-ui); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 6px; }
+.skill-card .row > div ul { padding-left: 18px; margin: 0; font-size: 14px; }
+.skill-card .row > div ul li { margin-bottom: 4px; }
+.skill-card .row .strengths h4 { color: var(--good); }
+.skill-card .row .issues h4 { color: var(--warn); }
+@media (max-width: 720px) { .skill-card .row { grid-template-columns: 1fr; } }
+
+/* Findings list */
+.finding {
+	background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+	padding: 16px 20px; margin-bottom: 12px;
+}
+.finding.sev-H { border-left: 4px solid var(--bad); }
+.finding.sev-M { border-left: 4px solid var(--warn); }
+.finding.sev-L { border-left: 4px solid var(--info); }
+.finding .id { font-family: var(--font-mono); font-size: 12px; font-weight: 700; background: var(--ink); color: #fff; padding: 2px 8px; border-radius: 4px; }
+.finding .ti { font-family: var(--font-ui); font-size: 16px; font-weight: 600; margin: 0 0 4px; display: inline-block; margin-left: 8px; }
+.finding .meta { color: var(--muted); font-family: var(--font-ui); font-size: 13px; margin: 6px 0; }
+.finding p { margin: 6px 0; font-size: 14.5px; }
+.finding code { font-family: var(--font-mono); font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+.finding .fix { background: var(--good-soft); border-radius: 4px; padding: 8px 12px; margin-top: 8px; font-size: 14px; }
+.finding .fix strong { color: var(--good); }
+
+.callout {
+	background: #fff5e6; border-left: 4px solid var(--warn);
+	padding: 12px 16px; border-radius: 4px; margin: 12px 0;
+}
+.callout strong { color: var(--warn); }
+.callout.info { background: var(--info-soft); border-color: var(--info); }
+.callout.info strong { color: var(--info); }
+
+.code, pre.code {
+	font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55;
+	background: var(--code-bg); color: var(--code-ink);
+	padding: 12px 14px; border-radius: 8px;
+	white-space: pre; overflow-x: auto;
+	border: 1px solid #ebe6dc; margin: 8px 0 12px;
+}
+
+nav.toc {
+	font-family: var(--font-ui); font-size: 13px;
+	display: flex; gap: 8px 14px; flex-wrap: wrap;
+	padding: 12px 18px; background: var(--panel);
+	border: 1px solid var(--rule); border-radius: 10px; margin-bottom: 32px;
+}
+nav.toc a { color: var(--muted); text-decoration: none; }
+nav.toc a:hover { color: var(--ink); }
+
+section { margin-bottom: 36px; }
+
+.comment-area {
+	background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+	padding: 18px 22px; margin: 20px 0;
+}
+.comment-area h3 { margin-top: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.comment-area label { display: block; font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--ink); margin: 12px 0 6px; }
+.comment-area label small { color: var(--muted); font-weight: 400; }
+textarea.comment {
+	width: 100%; min-height: 64px; resize: vertical;
+	font: inherit; font-family: var(--font-ui); font-size: 14px;
+	padding: 10px 12px; border: 1px solid var(--rule-strong); border-radius: 6px;
+	background: #fffefb; color: var(--ink);
+}
+textarea.comment:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+textarea.comment.has-content { border-color: var(--accent); background: #fffaf3; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 8px; font-family: var(--font-ui); font-size: 14px; opacity: 0; transition: opacity .18s; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+ul.clean { padding-left: 22px; }
+ul.clean li { margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+	<div class="shell">
+		<div class="top-row">
+			<h1>Ripe-skills system audit</h1>
+			<span class="sub">2026-05-26 · scope: <code>vdz-skills/ripe-skills</code> · against Anthropic skill best practices + Ripe internal coherence</span>
+			<div class="top-actions">
+				<span class="counter" id="counter">0 comments</span>
+				<button class="copy-btn" id="copyBtn">Copy all comments</button>
+			</div>
+		</div>
+	</div>
+</header>
+
+<div class="shell">
+
+<div class="tldr">
+	<h2>Verdict</h2>
+	<p class="verdict"><strong>Healthy system, structurally sound.</strong> 5 skills, 23 files, 4,496 lines. All SKILL.md files under the Anthropic 500-line ceiling. Progressive disclosure used by 4 of 5 (routing being the holdout). Cross-references mostly wired. <strong>3 H · 4 M · 3 L findings</strong>; the H tier is mostly about discoverability and the <code>src/routes/</code> ↔ <code>src/router/</code> inconsistency between <code>ripe-init</code> and <code>building-ripe-routing</code>.</p>
+	<div class="badges">
+		<span class="tag good">5/5 SKILL.md ≤ 500 lines</span>
+		<span class="tag good">5/5 valid frontmatter</span>
+		<span class="tag warn">1/5 no progressive disclosure</span>
+		<span class="tag warn">1 inter-skill inconsistency</span>
+		<span class="tag info">2 gaps worth considering</span>
+	</div>
+</div>
+
+<nav class="toc">
+	<a href="#dash">1 · Health dashboard</a>
+	<a href="#bars">2 · Sizes vs threshold</a>
+	<a href="#discover">3 · Discoverability matrix</a>
+	<a href="#graph">4 · Cross-references</a>
+	<a href="#bp">5 · Best-practices alignment</a>
+	<a href="#perskill">6 · Per-skill review</a>
+	<a href="#gaps">7 · Gaps</a>
+	<a href="#findings">8 · Findings (H/M/L)</a>
+	<a href="#open">9 · Open questions</a>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+<section id="dash">
+	<h2>1 · Health dashboard</h2>
+	<p>One panel per skill. Stats: SKILL.md size, file count, total lines (including reference files). Health rating combines those plus structural concerns.</p>
+
+	<div class="dash">
+		<div class="skill">
+			<div class="name">ripe-init</div>
+			<div class="stat">96</div>
+			<div class="lbl">SKILL.md lines</div>
+			<div style="margin-top:8px;font-size:13px;font-family:var(--font-ui);color:var(--muted);">5 files · 638 total</div>
+			<div class="health good">Healthy</div>
+		</div>
+		<div class="skill">
+			<div class="name">building-ripe-store</div>
+			<div class="stat">159</div>
+			<div class="lbl">SKILL.md lines</div>
+			<div style="margin-top:8px;font-size:13px;font-family:var(--font-ui);color:var(--muted);">5 files · 1,694 total</div>
+			<div class="health good">Healthy</div>
+		</div>
+		<div class="skill">
+			<div class="name">building-ripe-components</div>
+			<div class="stat">313</div>
+			<div class="lbl">SKILL.md lines</div>
+			<div style="margin-top:8px;font-size:13px;font-family:var(--font-ui);color:var(--muted);">3 files · 797 total</div>
+			<div class="health warn">Watch</div>
+		</div>
+		<div class="skill">
+			<div class="name">building-ripe-routing</div>
+			<div class="stat">406</div>
+			<div class="lbl">SKILL.md lines</div>
+			<div style="margin-top:8px;font-size:13px;font-family:var(--font-ui);color:var(--muted);">1 file · 406 total</div>
+			<div class="health warn">Watch</div>
+		</div>
+		<div class="skill">
+			<div class="name">ripe-audit</div>
+			<div class="stat">77</div>
+			<div class="lbl">SKILL.md lines</div>
+			<div style="margin-top:8px;font-size:13px;font-family:var(--font-ui);color:var(--muted);">9 files · 794 total</div>
+			<div class="health good">Healthy</div>
+		</div>
+	</div>
+	<p class="muted-note">"Watch" = approaching the line-count threshold or not yet using progressive disclosure. Both routing and components could benefit from a split before the next round of additions lands.</p>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+<section id="bars">
+	<h2>2 · File sizes vs Anthropic's 500-line guideline</h2>
+	<p>Anthropic's skill best-practices guide recommends keeping <code>SKILL.md</code> under 500 lines and pushing depth into <em>reference files</em> loaded on demand. All Ripe SKILL.md files comply. The reference-file growth pattern is worth tracking — <code>listeners.md</code> is the heaviest at 620 lines.</p>
+
+	<div class="bars">
+		<h3 style="margin-top:0;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);">SKILL.md size (target ≤ 500)</h3>
+		<div class="row"><span class="label">ripe-audit</span><span class="track"><span class="fill good" style="width:15.4%;"></span></span><span class="val">77</span></div>
+		<div class="row"><span class="label">ripe-init</span><span class="track"><span class="fill good" style="width:19.2%;"></span></span><span class="val">96</span></div>
+		<div class="row"><span class="label">building-ripe-store</span><span class="track"><span class="fill good" style="width:31.8%;"></span></span><span class="val">159</span></div>
+		<div class="row"><span class="label">building-ripe-components</span><span class="track"><span class="fill warn" style="width:62.6%;"></span></span><span class="val">313</span></div>
+		<div class="row"><span class="label">building-ripe-routing</span><span class="track"><span class="fill warn" style="width:81.2%;"></span></span><span class="val">406</span></div>
+		<div class="threshold">Dashed at 100% = 500 lines. routing is at 81% of threshold (1 file, no progressive disclosure). components at 63%.</div>
+	</div>
+
+	<div class="bars">
+		<h3 style="margin-top:0;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);">Largest reference files (target ≤ ~500)</h3>
+		<div class="row"><span class="label">listeners.md</span><span class="track"><span class="fill warn" style="width:124%;"></span></span><span class="val">620</span></div>
+		<div class="row"><span class="label">routing/SKILL.md</span><span class="track"><span class="fill warn" style="width:81.2%;"></span></span><span class="val">406</span></div>
+		<div class="row"><span class="label">state-shape.md</span><span class="track"><span class="fill good" style="width:75.4%;"></span></span><span class="val">377</span></div>
+		<div class="row"><span class="label">creating-a-branch.md</span><span class="track"><span class="fill good" style="width:70.6%;"></span></span><span class="val">353</span></div>
+		<div class="row"><span class="label">components/SKILL.md</span><span class="track"><span class="fill good" style="width:62.6%;"></span></span><span class="val">313</span></div>
+		<div class="row"><span class="label">styled.md</span><span class="track"><span class="fill good" style="width:52.6%;"></span></span><span class="val">263</span></div>
+		<div class="threshold">Reference files don't have the same ceiling as SKILL.md (they're loaded on demand), but <code>listeners.md</code> is over 500 — flagging as M.</div>
+	</div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+<section id="discover">
+	<h2>3 · Discoverability matrix</h2>
+	<p>How agents would route requests to each skill based on the <code>description:</code> in the frontmatter. "Trigger surface" = the words/phrases agents would match; "Risk of miss" = how likely an agent picks the wrong skill or none.</p>
+
+	<table class="matrix">
+		<thead>
+			<tr>
+				<th>Skill</th>
+				<th>Strong triggers (description keywords)</th>
+				<th>Likely-hit user phrases</th>
+				<th>Risk of miss</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td><code>ripe-init</code></td>
+				<td>"initializes", "new project", "scaffolds"</td>
+				<td>"start a new Ripe project", "init", "set up boilerplate"</td>
+				<td class="risk-low">Low</td>
+			</tr>
+			<tr>
+				<td><code>building-ripe-store</code></td>
+				<td>"Redux branches", "actions/reducers/listeners", "API functions", "state management", "application business logic", "architectural thinking"</td>
+				<td>"add a feature", "store branch", "listener", "add state", "redux slice"</td>
+				<td class="risk-low">Low — recently broadened. Best-tuned of the lot.</td>
+			</tr>
+			<tr>
+				<td><code>building-ripe-components</code></td>
+				<td>"creating components", "editing components", "UI features", "component anatomy"</td>
+				<td>"build a component", "card", "form", "button"</td>
+				<td class="risk-med">Medium — description mentions pairing with <code>building-ripe-store</code> only; not <code>building-ripe-routing</code>. Asymmetric.</td>
+			</tr>
+			<tr>
+				<td><code>building-ripe-routing</code></td>
+				<td>"creating routes", "adding pages", "navigation", "router-to-store bridge", "setLocation"</td>
+				<td>"add a route", "URL", "page", "navigate", "react router"</td>
+				<td class="risk-low">Low — but pair reference missing in description (doesn't mention <code>building-ripe-store</code>).</td>
+			</tr>
+			<tr>
+				<td><code>ripe-audit</code></td>
+				<td>"audit", "review for Ripe adherence", "maintenance quality"</td>
+				<td>"audit this", "check this against the patterns", "is this Ripe-compliant"</td>
+				<td class="risk-med">Medium — "audit" is a strong trigger but a user saying "review my Ripe code" might hit the general <code>review</code> or <code>code-review</code> skill first. Worth adding "check Ripe compliance" / "Ripe code review" phrases to the description.</td>
+			</tr>
+		</tbody>
+	</table>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+<section id="graph">
+	<h2>4 · Cross-references between skills</h2>
+	<p>How each skill's docs link to the others. Symmetric back-references indicate well-wired pairs; one-way arrows are gaps worth closing.</p>
+
+	<div class="graph">
+       <span class="node-h">ripe-init</span>
+          <span class="arrow">├─→</span> building-ripe-store        (link in SKILL.md "Next Steps")
+          <span class="arrow">├─→</span> building-ripe-components   (link in SKILL.md "Next Steps")
+          <span class="arrow">└─→</span> building-ripe-routing      (link in SKILL.md "Next Steps")
+
+       <span class="node-h">building-ripe-store</span>  ←──→  <span class="node-h">building-ripe-routing</span>
+          (state-shape Step 0 ← routing SKILL.md; routing SKILL.md → store Pattern 7; bidirectional ✓)
+
+       <span class="node-h">building-ripe-store</span>  ←──→  <span class="node-h">building-ripe-components</span>
+          (components/SKILL.md → store listeners.md service modules;
+           store listeners.md → components/SKILL.md anti-patterns; bidirectional ✓)
+
+       <span class="node-h">building-ripe-routing</span>  <span class="miss">─?─</span>  <span class="node-h">building-ripe-components</span>
+          (routing SKILL.md uses components in examples but doesn't link to them.
+           Components doesn't mention routing pair in description. <span class="miss">ASYMMETRIC.</span>)
+
+       <span class="node-h">ripe-audit</span>
+          <span class="arrow">├─→</span> building-ripe-store        (checklists/store.md cites cardinal rules + state-shape.md)
+          <span class="arrow">├─→</span> building-ripe-components   (checklists/components.md cites SKILL.md sections)
+          <span class="arrow">└─→</span> building-ripe-routing      (checklists/routing.md cites SKILL.md sections)
+          (ripe-audit doesn't need back-refs — it's the auditor, not auditee.)
+	</div>
+
+	<div class="callout"><strong>One gap.</strong> <code>building-ripe-components</code>'s <code>description:</code> only says "pair with <code>building-ripe-store</code>". A user adding "a clickable card that navigates to a route" routes to components but might miss that routing is involved. Pair phrasing should include both: <em>"pair with <code>building-ripe-store</code> for state and <code>building-ripe-routing</code> for navigation"</em>.</div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+<section id="bp">
+	<h2>5 · Best-practices alignment</h2>
+	<p>Against Anthropic's <a href="https://docs.anthropic.com/en/docs/agents-and-tools/agent-skills/best-practices" target="_blank">skill best practices</a> + internal Ripe coherence rules.</p>
+
+	<div class="checklist">
+		<ul>
+			<li class="pass"><strong>SKILL.md ≤ 500 lines</strong> — <span class="note">all 5 skills compliant (max 406 for routing).</span></li>
+			<li class="pass"><strong>Valid YAML frontmatter</strong> — <span class="note">all 5 skills have <code>name:</code> and <code>description:</code> properly formed.</span></li>
+			<li class="pass"><strong>Descriptions begin with an action verb</strong> — <span class="note">"Initializes" / "Creates and modifies" / "Sets up" / "Audit". Good imperative form.</span></li>
+			<li class="pass"><strong>Descriptions include "Use when…" guidance</strong> — <span class="note">all 5 have explicit "Use when" phrasing.</span></li>
+			<li class="partial"><strong>Progressive disclosure (reference files)</strong> — <span class="note">4/5 split. <code>building-ripe-routing</code> is one big SKILL.md with no sub-files.</span></li>
+			<li class="pass"><strong>Workflows + checklists</strong> — <span class="note">ripe-init has a file-creation checklist; store has a workflow checklist; components has one; routing has one.</span></li>
+			<li class="pass"><strong>Examples / templates</strong> — <span class="note">ripe-init ships templates; building skills have worked examples; ripe-audit has report template + sample checks.</span></li>
+			<li class="pass"><strong>Cross-skill links</strong> — <span class="note">mostly wired (one gap; see §4).</span></li>
+			<li class="partial"><strong>Cross-skill description pairing</strong> — <span class="note">components→routing pair missing in description; routing→store pair implicit, not explicit.</span></li>
+			<li class="pass"><strong>Self-contained — no external auth or runtime deps</strong> — <span class="note">all skills work with stock RTK 2.x / React 19 / react-redux 9.</span></li>
+			<li class="fail"><strong>Internal consistency: <code>src/routes/</code> vs <code>src/router/</code></strong> — <span class="note">ripe-init scaffolds <code>src/routes/</code>; building-ripe-routing says <code>src/router/</code>. Same skill family, two file-path conventions. <strong>Pick one.</strong></span></li>
+			<li class="pass"><strong>Auditor citations resolve</strong> — <span class="note">ripe-audit's checklist rule-source citations all point to live sections (post the <code>_staging</code> cleanup).</span></li>
+			<li class="partial"><strong>Reference file size discipline</strong> — <span class="note"><code>listeners.md</code> is at 620 lines — over Anthropic's general recommendation. Splittable into <code>listener-patterns.md</code> + <code>listener-anatomy.md</code>.</span></li>
+			<li class="pass"><strong>Indentation matches Ripe (tabs)</strong> — <span class="note">all <code>.md</code> code blocks use tabs.</span></li>
+		</ul>
+	</div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+<section id="perskill">
+	<h2>6 · Per-skill review</h2>
+
+	<article class="skill-card l">
+		<h3><code>ripe-init</code> — Healthy</h3>
+		<div class="row">
+			<div class="strengths">
+				<h4>Strengths</h4>
+				<ul>
+					<li>Short, focused SKILL.md (96 lines)</li>
+					<li>Mechanical file-creation checklist — agent-friendly</li>
+					<li>"Next Steps" section explicitly hands off to the other 3 skills</li>
+					<li>Templates split into 4 reference files (config / store / app / claude-md)</li>
+				</ul>
+			</div>
+			<div class="issues">
+				<h4>Issues</h4>
+				<ul>
+					<li><strong>H · routes/ vs router/.</strong> Scaffolds <code>src/routes/</code> but <code>building-ripe-routing</code> mandates <code>src/router/</code>. A new project starts inconsistent with the routing skill on day zero.</li>
+					<li><strong>M · No React-19 / Compiler note in config-templates.md.</strong> Worth a one-liner pointing devs at the React Compiler opt-in or confirming it's enabled by default in the chosen Vite + React 19 baseline.</li>
+				</ul>
+			</div>
+		</div>
+	</article>
+
+	<article class="skill-card l">
+		<h3><code>building-ripe-store</code> — Healthy</h3>
+		<div class="row">
+			<div class="strengths">
+				<h4>Strengths</h4>
+				<ul>
+					<li>Best-tuned <code>description:</code> in the family (recent edit: "application business logic", "architectural thinking", broadened to "Redux branches")</li>
+					<li>6 cardinal rules well-articulated</li>
+					<li>Good progressive disclosure (5 reference files)</li>
+					<li>Pairs with both components and routing in description</li>
+					<li>Listener patterns 1–8 cover the breadth</li>
+				</ul>
+			</div>
+			<div class="issues">
+				<h4>Issues</h4>
+				<ul>
+					<li><strong>M · <code>listeners.md</code> at 620 lines.</strong> Largest file in the system. With 8 patterns, optimistic-updates section, error handling, common mistakes — it's read-once-cover-to-cover unfriendly. Candidate split: <code>listener-patterns.md</code> (the 8) + <code>listener-anatomy.md</code> (error handling, cross-branch, common mistakes).</li>
+					<li><strong>L · Selectors lives inside state-shape.md.</strong> Currently fine, but if state-shape adds more, extract <code>selectors.md</code> as a peer.</li>
+				</ul>
+			</div>
+		</div>
+	</article>
+
+	<article class="skill-card m">
+		<h3><code>building-ripe-components</code> — Watch</h3>
+		<div class="row">
+			<div class="strengths">
+				<h4>Strengths</h4>
+				<ul>
+					<li>313-line SKILL.md still comfortable</li>
+					<li>Good split with <code>patterns.md</code> and <code>styled.md</code></li>
+					<li>Strict rules well-articulated (no <code>useState</code>, no transient props)</li>
+				</ul>
+			</div>
+			<div class="issues">
+				<h4>Issues</h4>
+				<ul>
+					<li><strong>H · Description missing routing pair.</strong> Says "pair with <code>building-ripe-store</code>" but not "and <code>building-ripe-routing</code>". A user building a clickable card that navigates won't see the routing hint.</li>
+					<li><strong>L · SKILL.md trending up.</strong> 313 lines is fine but it's grown +75 since the v1 baseline. Watch for a 400+ line point at which "Styled Components" overview + "Composition Over Configuration" + "Clean Return Statement" could move into their own reference file.</li>
+				</ul>
+			</div>
+		</div>
+	</article>
+
+	<article class="skill-card m">
+		<h3><code>building-ripe-routing</code> — Watch</h3>
+		<div class="row">
+			<div class="strengths">
+				<h4>Strengths</h4>
+				<ul>
+					<li>Description includes the high-leverage phrase "router-to-store bridge"</li>
+					<li>"Routes Are Feature Affordances" framing earns its place at the top</li>
+					<li>Idempotency-on-exit rule + audit hook well-wired</li>
+				</ul>
+			</div>
+			<div class="issues">
+				<h4>Issues</h4>
+				<ul>
+					<li><strong>H · No progressive disclosure.</strong> 406 lines all in SKILL.md. Approaching the ceiling; one more substantive addition tips it over. Suggested split: <code>setup.md</code> (router instance, route tree, bridge), <code>hydration.md</code> (preemptive hydration + idempotency patterns), <code>navigation.md</code> (programmatic + in-component nav).</li>
+					<li><strong>M · Description doesn't explicitly pair with <code>building-ripe-store</code>.</strong> Implicit via "router-to-store bridge" but worth saying.</li>
+				</ul>
+			</div>
+		</div>
+	</article>
+
+	<article class="skill-card l">
+		<h3><code>ripe-audit</code> — Healthy</h3>
+		<div class="row">
+			<div class="strengths">
+				<h4>Strengths</h4>
+				<ul>
+					<li>Tightest SKILL.md (77 lines) — pure navigator</li>
+					<li>Mission statement carries the "is the system simple enough" frame</li>
+					<li>Checklists segmented per concern (5 lenses)</li>
+					<li>Runner.md gives the agent an explicit execution sequence</li>
+					<li>Report template carries the script-literal-char lesson learned</li>
+				</ul>
+			</div>
+			<div class="issues">
+				<h4>Issues</h4>
+				<ul>
+					<li><strong>M · Description trigger surface narrow.</strong> "audit" hits, but "review my Ripe code" / "is this maintainable?" might route to the generic <code>code-review</code> instead. Add "Ripe compliance review" / "maintainability check" phrasing.</li>
+					<li><strong>L · No example output anchored.</strong> Agents don't have a sample completed audit to anchor expectations. Consider committing a sample <code>example-audit.html</code> alongside <code>report-template.html</code>.</li>
+				</ul>
+			</div>
+		</div>
+	</article>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+<section id="gaps">
+	<h2>7 · Gaps — what the system doesn't cover</h2>
+
+	<article class="finding sev-M">
+		<span class="id">GAP-1</span><span class="ti">No testing skill</span>
+		<p class="meta">Severity: M · Suggested name: <code>building-ripe-tests</code></p>
+		<p>Reducer tests, listener tests, and the test-harness pattern (<code>makeTestHarness</code>, <code>fireEvent.change</code> for selects in jsdom, integration tests crossing branches) are mentioned across <code>creating-a-branch.md</code>, the <code>ripe-init</code> scaffolds, and the demo-park feedback doc — but there's no canonical skill for "how do I test in Ripe?".</p>
+		<p>What it would cover: test-harness pattern, mocking dispatch + getState, asserting reducer transitions, asserting listener flows (chain of dispatches), component tests with RTL + harness, the <code>vi.resetModules()</code> + dynamic-import trick for once-only listeners.</p>
+		<div class="fix"><strong>If we want it:</strong> tracer-bullet skill — start small (one SKILL.md + one <code>patterns.md</code>) and grow as projects accumulate test idioms.</div>
+	</article>
+
+	<article class="finding sev-L">
+		<span class="id">GAP-2</span><span class="ti">No "overview" / "introduction" skill for first-time agents</span>
+		<p class="meta">Severity: L · Suggested name: <code>ripe-overview</code> or <code>ripe-introduction</code></p>
+		<p>An agent dropping into a Ripe project for the first time has no entry-point skill that explains the system: three layers (store / listeners / components), the application information cycle, the cardinal rules at a glance. It's all in <code>README.md</code> at the repo root, but the agent doesn't auto-load README.</p>
+		<p>Possible answer: a small <code>ripe-overview</code> skill whose entire purpose is to load when the agent says "what's Ripe?" or when the user asks an architectural question. Could just re-export the README's key sections.</p>
+		<div class="fix"><strong>Lighter alternative:</strong> add a "How Ripe Fits Together" section to <code>ripe-init/SKILL.md</code> that gets read at project boot. New agents naturally hit ripe-init first; existing projects don't.</div>
+	</article>
+
+	<article class="finding sev-L">
+		<span class="id">GAP-3</span><span class="ti">No migration skill for non-Ripe → Ripe</span>
+		<p class="meta">Severity: L · Suggested name: <code>ripe-migrate</code> (future, when needed)</p>
+		<p>Currently Ripe is greenfield-first. If an existing React + Redux project wants to adopt Ripe, there's no skill that walks through the transition. Not pressing — wait until the first concrete migration request lands.</p>
+	</article>
+
+	<article class="finding sev-L">
+		<span class="id">GAP-4</span><span class="ti">No atomic-primitives skill (future component library)</span>
+		<p class="meta">Severity: L · Suggested name: <code>building-ripe-primitives</code> (future)</p>
+		<p>The atomic-primitive carve-out (no-<code>useState</code> exception) is documented in <code>patterns.md</code> but currently theoretical. When the first Ripe shared-component library lands, that's the moment to add a skill for it. Premature today.</p>
+	</article>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+<section id="findings">
+	<h2>8 · Findings — ranked</h2>
+
+	<h3>H — High priority</h3>
+
+	<article class="finding sev-H">
+		<span class="id">H1</span><span class="ti">Inconsistency: ripe-init scaffolds <code>src/routes/</code>, building-ripe-routing mandates <code>src/router/</code></span>
+		<p class="meta">Affects: ripe-init + building-ripe-routing · The same issue was flagged in the demo-park 2026-05-20 audit (H1)</p>
+		<p><code>ripe-init/SKILL.md</code> checklist line 36–38 creates <code>src/routes/types.ts</code>, <code>src/routes/routes.tsx</code>, <code>src/routes/router.ts</code>. But <code>building-ripe-routing/SKILL.md</code> says "All routing config lives in <code>src/router/</code>". A fresh project is born inconsistent.</p>
+		<div class="fix"><strong>Fix:</strong> change <code>ripe-init</code> to scaffold <code>src/router/</code> (and update <code>app-templates.md</code>). One canonical name; <code>router</code> reads better in lstv-portal-style monorepo too.</div>
+	</article>
+
+	<article class="finding sev-H">
+		<span class="id">H2</span><span class="ti"><code>building-ripe-components</code> description missing routing pair</span>
+		<p class="meta">Affects: discoverability of building-ripe-routing when starting from a component task</p>
+		<p>Current description ends: <em>"For full features requiring both state and UI, pair with <code>building-ripe-store</code>."</em> A user asking to build a clickable card that navigates won't see routing surfaced.</p>
+		<div class="fix"><strong>Fix:</strong> change pair phrasing to <em>"For full features, pair with <code>building-ripe-store</code> for state and <code>building-ripe-routing</code> for navigation."</em></div>
+	</article>
+
+	<article class="finding sev-H">
+		<span class="id">H3</span><span class="ti"><code>building-ripe-routing</code> has no progressive disclosure</span>
+		<p class="meta">Affects: maintenance; one more addition tips past Anthropic's 500-line guideline</p>
+		<p>406 lines in a single <code>SKILL.md</code>. Comfortable today, fragile tomorrow. The skill covers four distinct topic clusters: router setup, route definitions, the bridge + store branch, hydration patterns + idempotency, programmatic + in-component navigation.</p>
+		<div class="fix"><strong>Fix:</strong> split into a slim navigator SKILL.md + <code>setup.md</code> + <code>hydration.md</code> + <code>navigation.md</code>. Or at minimum: extract the "Idempotency in setLocation Listeners" + the route-exit listeners into their own <code>route-listeners.md</code> reference file (the patterns most likely to grow next).</div>
+	</article>
+
+	<h3>M — Medium priority</h3>
+
+	<article class="finding sev-M">
+		<span class="id">M1</span><span class="ti"><code>listeners.md</code> at 620 lines — split candidate</span>
+		<p class="meta">Affects: reference-file size; readability</p>
+		<p>The file covers: file structure, 8 patterns, error handling, where cross-branch listeners live, cross-branch cleanup on entity delete, reading state, action chains, optimistic updates, common mistakes. That's three discrete reading sessions packed into one file.</p>
+		<div class="fix"><strong>Fix:</strong> split into <code>listener-patterns.md</code> (the 8 patterns + concurrency notes), <code>listener-anatomy.md</code> (file structure, reading state, error handling, common mistakes), and keep optimistic-updates / cross-branch cleanup as their own short anchors. SKILL.md's reference table re-links accordingly.</div>
+	</article>
+
+	<article class="finding sev-M">
+		<span class="id">M2</span><span class="ti"><code>building-ripe-routing</code> description doesn't mention store pair</span>
+		<p class="meta">Affects: discoverability of building-ripe-store when starting from a routing task</p>
+		<p>The phrase "router-to-store bridge" is in there, which gives an agent a faint hint, but explicit pairing helps.</p>
+		<div class="fix"><strong>Fix:</strong> append <em>"For full features, pair with <code>building-ripe-store</code> for state and <code>building-ripe-components</code> for UI."</em></div>
+	</article>
+
+	<article class="finding sev-M">
+		<span class="id">M3</span><span class="ti"><code>ripe-audit</code> description has narrow trigger surface</span>
+		<p class="meta">Affects: discoverability when user asks generically about code quality</p>
+		<p>Trigger word "audit" hits cleanly. But "review my Ripe code", "is this following the patterns?", "maintainability check" might route to the generic <code>code-review</code> first.</p>
+		<div class="fix"><strong>Fix:</strong> expand description to include phrases like <em>"Ripe compliance review"</em>, <em>"maintainability check"</em>, <em>"check this against The Ripe Method patterns"</em>.</div>
+	</article>
+
+	<article class="finding sev-M">
+		<span class="id">M4</span><span class="ti">GAP-1 — no testing skill (re-listed)</span>
+		<p class="meta">Affects: completeness of the system</p>
+		<p>See §7 GAP-1. M severity because testing guidance is genuinely missing; deferring is OK while patterns settle.</p>
+	</article>
+
+	<h3>L — Low priority</h3>
+
+	<article class="finding sev-L">
+		<span class="id">L1</span><span class="ti">Selectors guidance lives in <code>state-shape.md</code>, not its own file</span>
+		<p class="meta">Affects: discoverability inside the skill</p>
+		<p>Per your Q1 answer that's the right place today. Flagging only as a marker — if state-shape.md grows past ~500, extract a <code>selectors.md</code> peer to <code>listeners.md</code>.</p>
+	</article>
+
+	<article class="finding sev-L">
+		<span class="id">L2</span><span class="ti"><code>ripe-audit</code> has no example output to anchor expectations</span>
+		<p class="meta">Affects: agent guidance when running the audit</p>
+		<p>The template is there; an actual filled example would help an agent calibrate "how detailed should each card be?".</p>
+		<div class="fix"><strong>Fix:</strong> commit a <code>skills/ripe-audit/example-audit.html</code> with 4–6 sample findings (one of each lens) so the agent has a worked target.</div>
+	</article>
+
+	<article class="finding sev-L">
+		<span class="id">L3</span><span class="ti">No <code>ripe-overview</code> skill for first-time agents</span>
+		<p class="meta">Affects: cold-start agent comprehension</p>
+		<p>See §7 GAP-2. Low priority because existing projects scaffold via <code>ripe-init</code> which hands off explicitly, and the description-based triggering surface is strong enough that agents rarely flounder.</p>
+	</article>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════════ -->
+<section id="open" class="comment-area">
+	<h3>9 · Open questions for you</h3>
+	<p style="font-size:14px;color:var(--muted);">Three knobs I'd like your call on before applying any of these. Drop a comment under each; "Copy all comments" at the top emits a markdown block you paste back. Silence = "you decide, apply as proposed."</p>
+
+	<label for="cmt-q1">Q1 — Apply the H tier now? <small>H1 (routes/ → router/ in ripe-init), H2 (components description), H3 (split routing/SKILL.md). H3 is the most invasive — moves content across files. Yes / no / "do H1+H2 only".</small></label>
+	<textarea class="comment" id="cmt-q1" data-id="Q1" data-title="Apply H tier now"></textarea>
+
+	<label for="cmt-q2">Q2 — Do we want a <code>building-ripe-tests</code> skill (GAP-1 / M4)? <small>Yes — start small / Yes — wait until we have more test idioms / No — keep testing guidance in the building skills.</small></label>
+	<textarea class="comment" id="cmt-q2" data-id="Q2" data-title="building-ripe-tests skill"></textarea>
+
+	<label for="cmt-q3">Q3 — Anything I missed, mis-scored, or framed wrong? <small>Especially: skills I haven't audited closely (ripe-init's templates, e.g. claude-md-template.md), or risks I haven't flagged.</small></label>
+	<textarea class="comment" id="cmt-q3" data-id="Q3" data-title="Anything missed or mis-scored"></textarea>
+</section>
+
+</div><!-- /shell -->
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+(function() {
+	const textareas = Array.from(document.querySelectorAll('textarea.comment'));
+	const counter = document.getElementById('counter');
+	const btn = document.getElementById('copyBtn');
+	const toast = document.getElementById('toast');
+
+	function updateCounter() {
+		const n = textareas.filter(function(t) { return t.value.trim().length > 0; }).length;
+		counter.textContent = n === 1 ? '1 comment' : (n + ' comments');
+	}
+
+	textareas.forEach(function(t) {
+		t.addEventListener('input', function() {
+			t.classList.toggle('has-content', t.value.trim().length > 0);
+			updateCounter();
+		});
+	});
+
+	function buildMarkdown() {
+		const filled = textareas.filter(function(t) { return t.value.trim().length > 0; });
+		if (filled.length === 0) {
+			return '# Skill-system Audit — Responses (2026-05-26)\n\n_No comments — accept findings as graded._\n';
+		}
+		const lines = ['# Skill-system Audit — Responses (2026-05-26)', ''];
+		lines.push('_Items not listed = accepted as proposed._');
+		lines.push('');
+		filled.forEach(function(t) {
+			const id = t.getAttribute('data-id');
+			const title = t.getAttribute('data-title');
+			lines.push('## ' + id + ' — ' + title);
+			lines.push('');
+			t.value.trim().split('\n').forEach(function(l) { lines.push('> ' + l); });
+			lines.push('');
+		});
+		return lines.join('\n');
+	}
+
+	function showToast(msg) {
+		toast.textContent = msg;
+		toast.classList.add('show');
+		setTimeout(function() { toast.classList.remove('show'); }, 1400);
+	}
+
+	btn.addEventListener('click', async function() {
+		const md = buildMarkdown();
+		try {
+			await navigator.clipboard.writeText(md);
+			btn.classList.add('ok');
+			btn.textContent = '✓ Copied';
+			setTimeout(function() {
+				btn.classList.remove('ok');
+				btn.textContent = 'Copy all comments';
+			}, 1600);
+		} catch (e) {
+			showToast('Clipboard blocked — see console');
+			console.log(md);
+		}
+	});
+
+	updateCounter();
+})();
+</script>
+
+</body>
+</html>
