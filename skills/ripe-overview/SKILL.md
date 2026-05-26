@@ -32,82 +32,69 @@ Useful every time it runs, because the project moved.
 
 Total runtime budget: ~15 seconds. If reading takes longer, narrow the scope (commit window, doc scan depth).
 
-## Output schema
+## Output schema (visual-first)
 
-The HTML has 6 blocks. Each has explicit rules.
+The HTML has 7 blocks. Prose is concentrated in Block 2 and Block 6's leverage pick; everything else is visual artifacts that the reader scans in seconds.
 
 ### Block 1 — Header
-Project name · branch + short SHA · timestamp. One line, monospace.
+Project name · branch + short SHA · timestamp · composite simplicity score (small badge, top-right).
 
-### Block 2 — Where you are (2 paragraphs)
-- **P1** (~50 words): branch shape + data gravity + active vs quiet branches. Specific counts.
-- **P2** (~50 words): current "phase" of the project — derived from design-docs-to-recent-commits ratio + open handoffs spread.
+### Block 2 — Where you are (1 paragraph)
+~60 words, present tense, drop cap. Branch shape + data gravity + current "phase". Observations first; phase label last. **No second paragraph** — the rest of the report shows what prose used to claim.
 
-Voice: present tense. Observations first; phase label last.
+### Block 3 — Timeline (the centrepiece)
+Horizontal scrollable SVG, last 3 weeks left-to-right, "today" marker at the right edge.
 
-### Block 3 — Simplicity (visual panel)
-Radar chart of 5 dimensions + composite score 0–100. Per dimension, a one-line interpretation. See **Simplicity rubric** below for how each is computed.
+- **5 lanes** stacked: Commits · Audits · Designs · Handoffs · Plans
+- **Dots per event**, sized by impact, coloured by lane. Audits coloured by severity (H/M/L).
+- Hover → tooltip with SHA / path / one-line title.
+- Below: **2-sentence framing**, not a paragraph. ("Eleven structural commits in three weeks; audit trend shrinking.")
 
-### Block 4 — Where you've been (2 paragraphs)
-- **P1** (~60 words): trajectory — "three weeks ago this was X; since then Y happened". Cite structural-commit SHAs.
-- **P2** (~40 words): audit trend — change in H/M/L counts over time, plus what that says.
+### Block 4 — Stalled threads (list)
+Files/branches with **no commits in N days** AND have an open handoff/design/plan pointing at them. Three to five items. Each item: thread name, days-since-last-touch, path of the pointing doc. Surfaces work that fell off the map.
 
-Voice: past tense. Inline SHAs and dates.
+If nothing is stalled: a single line "No stalled threads in the last N days." (signal in its own right.)
 
-### Block 5 — Where you might go (intro + list + closing)
-- **Intro** (~20 words): one sentence framing.
-- **List**: 3–5 named open threads. Per item: thread name (bold), one sentence of state, suggested next move. File paths inline.
-- **Closing** (~30 words): committed leverage pick — no hedging.
+### Block 5 — Shipped vs drafted (two-column ledger)
+For each `docs/designs/*.html` and `docs/plan/*.html`: did the corresponding code land?
 
-Voice: conditional. List items are the only list in the document.
+Heuristic: grep the doc's filename slug (`editable-field-lifecycle` → `edit`/`editable`/`inline-edit`) against `git log --since=4.weeks --pretty=%s`. Match = shipped. No match within 7 days of the doc's mtime = drafted.
 
-### Block 6 — Footer
+Two columns:
+- **Shipped** — doc + matching commit SHA
+- **Drafted (pending)** — doc + days since drafted
+
+Sorted by recency within each column.
+
+### Block 6 — Branch heat map (small grid)
+14 columns (last 14 days) × N rows (branches). Each cell shaded by commit count that day. Reveals data gravity visually — a glance shows which branches are hot.
+
+Cell shades: 0 = empty, 1 = soft, 2-3 = medium, 4+ = full accent.
+
+### Block 7 — Where you might go (intro + list + pick)
+- **Intro** (~20 words): one sentence framing the open threads.
+- **List**: 3–5 named open threads. Each: thread name (bold), one sentence, path inline.
+- **Closing pick** (~30 words): committed leverage pick, no hedging.
+
+Voice: conditional. The only list-with-prose-narration in the document.
+
+### Block 8 — Footer
 Run metadata: timestamp, runtime, input counts, React major + RTK major.
 
-## Simplicity rubric
+## Simplicity composite (single number)
 
-Each dimension scores 0–100. The composite is a weighted average; defaults shown.
+A composite 0–100 score lives in the header badge. The five sub-dimensions are computed but **not displayed** in the overview — they belong in `ripe-audit`'s detail. The composite is the at-a-glance signal.
 
-### State management simplicity (weight 25)
-- Branch count: ideal 4–8. Penalty outside.
-- Average branch size: ideal < 600 lines. Penalty above.
-- No branch exceeds 1500 lines (steep penalty if violated).
-- Dual-structure pattern in collections (`items` + `byId`): bonus for compliance.
+Composite = weighted average of:
+- **State management** (25): branch count ideal 4–8; sizes < 600 lines each; dual-structure compliance
+- **Business logic** (25): listener count 10–40; sizes < 250 lines; no file > 500
+- **TSX structure** (20): components 10–80; sizes < 150 lines; no file > 250; `.styled.tsx` co-location
+- **Routing** (15): routes 5–25; one `setLocation` listener per branch; idempotency guards
+- **Documentation** (15): `CLAUDE.md` < 300 lines; `docs/` subfolders present; `CONTEXT.md` / `docs/adr/` bonus
 
-Heuristic: `wc -l src/store/*/*.ts` per branch; flag outliers.
+Bands: 70+ healthy · 50–69 fine · 30–49 strained · < 30 creaking.
 
-### Business logic simplicity (weight 25)
-- Listener count total: ideal 10–40 across all branches. Outside → penalty.
-- Average listener `.ts` file size: ideal < 250 lines.
-- No listener file exceeds 500 lines (penalty if violated — the audit's M1 case).
-- Ratio of "uses `getOriginalState`" or "uses `cancelActiveListeners`" → bonus (indicates richer pattern coverage).
-
-Heuristic: count `Listener[]` entries; `wc -l` on `*.listener.ts`.
-
-### TSX structure simplicity (weight 20)
-- Component count: ideal 10–80. Outside → penalty.
-- Average component file size: ideal < 150 lines.
-- No component exceeds 250 lines (penalty if violated — clean-code threshold).
-- Ratio of components with `.styled.tsx` peer: bonus for separation.
-
-Heuristic: `wc -l src/components/**/*.tsx`; check `.styled.tsx` co-location.
-
-### Routing simplicity (weight 15)
-- Route count: ideal 5–25. Outside → penalty.
-- One `setLocation` listener entry per branch (penalty for more).
-- Idempotency guards present in route-driven dispatches (audit C1 / ROUTING-H).
-
-Heuristic: count routes in `src/router/routes.tsx`; grep `actionCreator: setLocation` per branch.
-
-### Documentation simplicity (weight 15)
-- `CLAUDE.md` exists and < 300 lines (high score). Missing or > 600 (low).
-- `docs/` structure has conventional subfolders (`audits/`, `handoffs/`, `plans/`, `designs/`) — bonus for each present.
-- `CONTEXT.md` or `docs/adr/` present — bonus.
-
-Heuristic: file existence + line counts.
-
-### Composite
-Weighted sum of the five, normalised to 0–100. A score in the 70s+ is "healthy"; 50–70 "fine"; below 50 "creaking".
+Heuristics are cheap — `wc -l` per area, grep counts, file existence. Full dimensional breakdown lives in the `ripe-audit` skill's clean-code + organisation checklists; don't duplicate it here.
 
 ## Signals — what to read
 

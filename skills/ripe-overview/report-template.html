@@ -1,38 +1,27 @@
 <!doctype html>
 <!--
-Ripe Overview report template.
+Ripe Overview report template — visual-first.
 
-Placeholders to fill at generation time:
-  {{PROJECT_NAME}}     "mce-demo-portal"
-  {{BRANCH}}           "develop"
-  {{COMMIT}}           short SHA "3387a8c"
-  {{TIMESTAMP}}        "2026-05-26 14:32"
+Placeholders:
+  {{PROJECT_NAME}} {{BRANCH}} {{COMMIT}} {{TIMESTAMP}}
+  {{COMPOSITE_VAL}} — composite simplicity 0–100
+  {{BAND_LABEL}}   — "Healthy" / "Fine" / "Strained" / "Creaking"
+  {{BLOCK_WHERE_YOU_ARE}}  — ~60 words, ONE paragraph
+  {{TIMELINE_DAYS}}        — number of day columns (default 21)
+  {{TIMELINE_EVENTS_SVG}}  — SVG <circle> dots placed by day×lane
+  {{TIMELINE_FRAMING}}     — 2 sentences below the timeline
+  {{STALLED_ITEMS}}        — <li> entries or empty-state line
+  {{SHIPPED_ITEMS}}        — <tr> entries: doc | matching commit
+  {{DRAFTED_ITEMS}}        — <tr> entries: doc | days drafted
+  {{HEATMAP_GRID}}         — <div class="cell"> entries
+  {{HEATMAP_BRANCHES}}     — <div class="row-label"> entries
+  {{GO_INTRO}}             — ~20 words
+  {{GO_LIST_ITEMS}}        — <li> entries (3–5)
+  {{GO_CLOSING}}           — committed pick, ~30 words
+  {{FOOTER_RUNTIME}} {{FOOTER_INPUTS}} {{REACT_MAJOR}} {{RTK_MAJOR}}
 
-  {{BLOCK_WHERE_YOU_ARE_P1}}    ~50 words, present tense
-  {{BLOCK_WHERE_YOU_ARE_P2}}    ~50 words, present tense
-  {{BLOCK_WHERE_YOU_BEEN_P1}}   ~60 words, past tense
-  {{BLOCK_WHERE_YOU_BEEN_P2}}   ~40 words, past tense
-  {{BLOCK_GO_INTRO}}            ~20 words
-  {{BLOCK_GO_LIST_ITEMS}}       3-5 <li> entries
-  {{BLOCK_GO_CLOSING}}          ~30 words, committed
-
-  Simplicity dimensions — each is a 0-100 integer + one-line interpretation:
-  {{S_STATE_VAL}}   {{S_STATE_LINE}}
-  {{S_LOGIC_VAL}}   {{S_LOGIC_LINE}}
-  {{S_TSX_VAL}}     {{S_TSX_LINE}}
-  {{S_ROUTING_VAL}} {{S_ROUTING_LINE}}
-  {{S_DOCS_VAL}}    {{S_DOCS_LINE}}
-  {{S_COMPOSITE_VAL}}  composite 0-100
-
-  {{FOOTER_RUNTIME}}            "~12s"
-  {{FOOTER_INPUTS}}             "6 store branches, 17 components, 4 audit reports..."
-  {{REACT_MAJOR}}               "19"
-  {{RTK_MAJOR}}                 "2.x"
-
-JS notes:
-  - All <script> uses literal characters (no entity-escaping).
-  - Auto dark/light based on local hour (6-18 light, otherwise dark).
-  - Manual toggle button overrides; preference stored in localStorage for the session.
+Auto dark/light by local hour (6–18 light; otherwise dark). Manual toggle persists in localStorage.
+All <script> uses literal characters.
 -->
 <html lang="en">
 <head>
@@ -58,12 +47,20 @@ JS notes:
 	--bad-soft:     #f5dad4;
 	--info:         #335a78;
 	--info-soft:    #dde9f2;
-	--radar-fill:   rgba(125, 79, 43, 0.18);
-	--radar-stroke: #7d4f2b;
-	--radar-grid:   #d2c9b3;
-	--radar-axis:   #74695a;
+	--lane-commit:  #7d4f2b;
+	--lane-audit-h: #b34a3e;
+	--lane-audit-m: #b8531f;
+	--lane-audit-l: #74695a;
+	--lane-design:  #335a78;
+	--lane-handoff: #4f7e54;
+	--lane-plan:    #6a4ea2;
+	--heat-0:       #f1ecdf;
+	--heat-1:       #e6d5b3;
+	--heat-2:       #d4a972;
+	--heat-3:       #b87a40;
+	--heat-4:       #7d4f2b;
 	--code-bg:      #efe9d8;
-	--code-ink:    #2a241b;
+	--code-ink:     #2a241b;
 	--shadow:       0 1px 0 rgba(0,0,0,.03), 0 2px 14px rgba(0,0,0,.06);
 	--font-prose: "Iowan Old Style", "Charter", ui-serif, Georgia, serif;
 	--font-ui:    -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
@@ -87,10 +84,18 @@ JS notes:
 	--bad-soft:     #2c1f1a;
 	--info:         #7eafd1;
 	--info-soft:    #1a242d;
-	--radar-fill:   rgba(210, 138, 58, 0.22);
-	--radar-stroke: #d28a3a;
-	--radar-grid:   #3f382c;
-	--radar-axis:   #8a8170;
+	--lane-commit:  #d28a3a;
+	--lane-audit-h: #d9836f;
+	--lane-audit-m: #e0a574;
+	--lane-audit-l: #8a8170;
+	--lane-design:  #7eafd1;
+	--lane-handoff: #88b793;
+	--lane-plan:    #b39adc;
+	--heat-0:       #1d1a14;
+	--heat-1:       #3a2f1f;
+	--heat-2:       #6a4a25;
+	--heat-3:       #a07034;
+	--heat-4:       #d28a3a;
 	--code-bg:      #221d15;
 	--code-ink:     #d9cfbb;
 	--shadow:       0 1px 0 rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
@@ -99,147 +104,135 @@ JS notes:
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: var(--font-prose); transition: background 0.4s ease, color 0.4s ease; }
 body { font-size: 17px; line-height: 1.65; -webkit-font-smoothing: antialiased; }
-.shell { max-width: 920px; margin: 0 auto; padding: 0 32px 100px; }
+.shell { max-width: 1100px; margin: 0 auto; padding: 0 32px 100px; }
 
 /* Top bar */
-header.top {
-	display: flex; justify-content: space-between; align-items: center;
-	padding: 22px 0 18px; margin: 0 0 36px;
-	border-bottom: 1px solid var(--rule);
-	font-family: var(--font-mono); font-size: 12px;
-	color: var(--muted); letter-spacing: 0.05em;
-	text-transform: uppercase;
-}
+header.top { display: flex; justify-content: space-between; align-items: center; padding: 22px 0 18px; margin: 0 0 24px; border-bottom: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; gap: 16px; flex-wrap: wrap; }
 header.top .meta .proj { color: var(--accent); font-weight: 700; }
 header.top .meta .branch { color: var(--ink-soft); margin-left: 12px; }
 header.top .meta .ts { color: var(--muted); margin-left: 12px; }
-header.top button.toggle {
-	font: inherit; cursor: pointer;
-	background: transparent; color: var(--muted);
-	border: 1px solid var(--rule-strong); border-radius: 999px;
-	padding: 4px 12px; font-size: 11px; letter-spacing: 0.06em;
-	transition: all 0.2s ease;
-}
+header.top .right { display: flex; align-items: center; gap: 12px; }
+header.top .score { display: flex; align-items: baseline; gap: 6px; padding: 6px 12px; background: var(--accent-soft); border-radius: 999px; font-family: var(--font-ui); }
+header.top .score .num { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: -0.02em; }
+header.top .score .band { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+header.top button.toggle { font: inherit; cursor: pointer; background: transparent; color: var(--muted); border: 1px solid var(--rule-strong); border-radius: 999px; padding: 4px 12px; font-size: 11px; letter-spacing: 0.06em; transition: all 0.2s ease; }
 header.top button.toggle:hover { color: var(--ink); border-color: var(--accent); }
 
-/* Section headings */
-h2 {
-	font-family: var(--font-ui); font-weight: 600; font-size: 12px;
-	letter-spacing: 0.14em; text-transform: uppercase;
-	color: var(--accent);
-	margin: 56px 0 18px;
-	padding-bottom: 8px;
-	border-bottom: 1px solid var(--rule);
-}
-h2:first-of-type { margin-top: 8px; }
+/* Title */
+.title-block { margin-bottom: 36px; }
+.title-block .title { font-family: var(--font-prose); font-size: 36px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; color: var(--ink); margin: 0 0 6px; }
+.title-block .subtitle { font-family: var(--font-ui); font-size: 13px; color: var(--muted); letter-spacing: 0.04em; }
 
-/* Prose paragraphs */
+/* Section headings */
+h2 { font-family: var(--font-ui); font-weight: 600; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+h2:first-of-type { margin-top: 0; }
+.framing { font-family: var(--font-ui); font-size: 13px; color: var(--muted); margin: 12px 0 0; font-style: italic; }
+
+/* Prose */
 p { margin: 0 0 18px; font-size: 17px; line-height: 1.7; color: var(--ink-soft); }
 p strong { color: var(--ink); font-weight: 600; }
 p em { font-style: italic; color: var(--accent); }
-p code, li code { font-family: var(--font-mono); font-size: 0.86em; background: var(--code-bg); color: var(--code-ink); padding: 1px 6px; border-radius: 3px; }
+p code, li code, td code { font-family: var(--font-mono); font-size: 0.86em; background: var(--code-bg); color: var(--code-ink); padding: 1px 6px; border-radius: 3px; }
+h2 + p::first-letter { font-family: var(--font-prose); font-size: 3.4em; float: left; line-height: 0.9; margin: 4px 8px 0 0; color: var(--accent); font-weight: 400; }
 
-/* Drop cap on first paragraph of each section */
-h2 + p::first-letter {
-	font-family: var(--font-prose);
-	font-size: 3.4em; float: left; line-height: 0.9;
-	margin: 4px 8px 0 0; color: var(--accent);
-	font-weight: 400;
-}
+/* ════════════════════════════════════════════════════════════════════════════
+   TIMELINE
+   ════════════════════════════════════════════════════════════════════════════ */
+.timeline-frame { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 22px 0 22px 22px; box-shadow: var(--shadow); overflow: hidden; }
+.timeline-scroll { overflow-x: auto; padding: 0 22px 8px 0; scrollbar-width: thin; scrollbar-color: var(--rule-strong) transparent; }
+.timeline-scroll::-webkit-scrollbar { height: 8px; }
+.timeline-scroll::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: 4px; }
+.timeline-svg { display: block; }
+.timeline-svg .lane-bg { fill: transparent; }
+.timeline-svg .lane-rule { stroke: var(--rule); stroke-width: 1; }
+.timeline-svg .lane-label { font-family: var(--font-ui); font-size: 10px; fill: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.timeline-svg .date-label { font-family: var(--font-mono); font-size: 10px; fill: var(--muted); }
+.timeline-svg .today-line { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 3; opacity: 0.6; }
+.timeline-svg circle.event { transition: r 0.2s ease; cursor: pointer; }
+.timeline-svg circle.event:hover { r: 7; }
+.timeline-svg circle.commit { fill: var(--lane-commit); }
+.timeline-svg circle.audit-h { fill: var(--lane-audit-h); }
+.timeline-svg circle.audit-m { fill: var(--lane-audit-m); }
+.timeline-svg circle.audit-l { fill: var(--lane-audit-l); }
+.timeline-svg circle.design { fill: var(--lane-design); }
+.timeline-svg circle.handoff { fill: var(--lane-handoff); }
+.timeline-svg circle.plan { fill: var(--lane-plan); }
+.timeline-svg circle.event title { font-family: var(--font-mono); }
+.timeline-legend { display: flex; gap: 18px; margin-top: 14px; font-family: var(--font-ui); font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.timeline-legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 6px; }
 
-/* Where you might go — list */
+/* ════════════════════════════════════════════════════════════════════════════
+   STALLED THREADS
+   ════════════════════════════════════════════════════════════════════════════ */
+.stalled { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 20px 26px; box-shadow: var(--shadow); }
+.stalled .empty { font-family: var(--font-ui); font-size: 14px; color: var(--good); }
+.stalled ol { list-style: none; padding: 0; margin: 0; }
+.stalled li { display: grid; grid-template-columns: 1fr auto; gap: 14px; padding: 10px 0; border-bottom: 1px dashed var(--rule); font-size: 14.5px; font-family: var(--font-ui); align-items: baseline; }
+.stalled li:last-child { border-bottom: 0; }
+.stalled li .name { color: var(--ink); font-weight: 600; }
+.stalled li .doc { color: var(--muted); font-size: 13px; }
+.stalled li .doc code { font-size: 11.5px; }
+.stalled li .days { color: var(--warn); font-family: var(--font-mono); font-size: 12px; font-weight: 700; text-align: right; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SHIPPED vs DRAFTED LEDGER
+   ════════════════════════════════════════════════════════════════════════════ */
+.ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .ledger { grid-template-columns: 1fr; } }
+.ledger .col { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 16px 20px; box-shadow: var(--shadow); }
+.ledger .col h3 { font-family: var(--font-ui); font-size: 11px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; display: flex; align-items: baseline; gap: 8px; }
+.ledger .col h3 .count { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.ledger .col.shipped h3 { color: var(--good); }
+.ledger .col.shipped h3 .count { color: var(--good); }
+.ledger .col.drafted h3 { color: var(--warn); }
+.ledger .col.drafted h3 .count { color: var(--warn); }
+.ledger table { width: 100%; border-collapse: separate; border-spacing: 0; font-family: var(--font-ui); font-size: 13px; }
+.ledger td { padding: 6px 0; border-bottom: 1px dashed var(--rule); vertical-align: top; }
+.ledger tr:last-child td { border-bottom: 0; }
+.ledger .doc { color: var(--ink); }
+.ledger .doc-name { font-weight: 500; }
+.ledger .doc-meta { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+.ledger .doc-meta code { font-size: 11px; }
+.ledger .ref { text-align: right; color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; padding-left: 8px; }
+.ledger .col.shipped .ref { color: var(--good); }
+.ledger .col.drafted .ref { color: var(--warn); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   HEAT MAP
+   ════════════════════════════════════════════════════════════════════════════ */
+.heatmap { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 18px 22px; box-shadow: var(--shadow); }
+.heatmap .grid-wrap { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: start; }
+.heatmap .branches { display: grid; grid-auto-rows: 22px; align-content: start; gap: 4px; padding-top: 18px; }
+.heatmap .branches .row-label { font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-align: right; line-height: 22px; }
+.heatmap .grid { display: grid; grid-template-rows: auto 1fr; gap: 4px; }
+.heatmap .day-labels { display: grid; grid-template-columns: repeat(14, 1fr); gap: 2px; font-family: var(--font-mono); font-size: 9px; color: var(--muted); }
+.heatmap .day-labels span { text-align: center; }
+.heatmap .day-labels span.today { color: var(--accent); font-weight: 700; }
+.heatmap .cells { display: grid; grid-template-columns: repeat(14, 1fr); grid-auto-rows: 22px; gap: 4px 2px; }
+.heatmap .cells .cell { border-radius: 3px; cursor: default; transition: transform 0.15s ease; }
+.heatmap .cells .cell:hover { transform: scale(1.15); }
+.heatmap .cells .cell.h0 { background: var(--heat-0); }
+.heatmap .cells .cell.h1 { background: var(--heat-1); }
+.heatmap .cells .cell.h2 { background: var(--heat-2); }
+.heatmap .cells .cell.h3 { background: var(--heat-3); }
+.heatmap .cells .cell.h4 { background: var(--heat-4); }
+.heatmap .scale { display: flex; align-items: center; gap: 6px; margin-top: 14px; font-family: var(--font-ui); font-size: 11px; color: var(--muted); }
+.heatmap .scale .swatch { width: 16px; height: 10px; border-radius: 2px; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WHERE YOU MIGHT GO
+   ════════════════════════════════════════════════════════════════════════════ */
 ol.threads { padding-left: 28px; margin: 0 0 18px; counter-reset: thread; list-style: none; }
-ol.threads li {
-	margin-bottom: 14px; font-size: 16px; line-height: 1.6;
-	color: var(--ink-soft); position: relative;
-	padding-left: 4px;
-	counter-increment: thread;
-}
-ol.threads li::before {
-	content: counter(thread, decimal-leading-zero);
-	position: absolute; left: -28px; top: 0;
-	font-family: var(--font-mono); font-size: 11px;
-	color: var(--accent); font-weight: 700;
-	letter-spacing: 0.04em;
-}
+ol.threads li { margin-bottom: 14px; font-size: 16px; line-height: 1.6; color: var(--ink-soft); position: relative; padding-left: 4px; counter-increment: thread; }
+ol.threads li::before { content: counter(thread, decimal-leading-zero); position: absolute; left: -28px; top: 0; font-family: var(--font-mono); font-size: 11px; color: var(--accent); font-weight: 700; letter-spacing: 0.04em; }
 ol.threads li strong { color: var(--ink); font-weight: 600; }
 ol.threads li code { font-size: 0.85em; }
-
-/* Closing pick — slightly emphasised */
-.pick {
-	margin-top: 24px; padding: 16px 22px;
-	background: var(--accent-soft);
-	border-left: 3px solid var(--accent);
-	border-radius: 0 6px 6px 0;
-	font-size: 17px; line-height: 1.55;
-	color: var(--ink);
-}
+.pick { margin-top: 24px; padding: 16px 22px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; font-size: 17px; line-height: 1.55; color: var(--ink); }
 .pick strong { color: var(--accent); }
 
-/* Simplicity block */
-.simplicity {
-	display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
-	align-items: center;
-	background: var(--panel);
-	border: 1px solid var(--rule);
-	border-radius: 12px;
-	padding: 28px 32px;
-	margin: 24px 0 12px;
-	box-shadow: var(--shadow);
-}
-@media (max-width: 760px) { .simplicity { grid-template-columns: 1fr; } }
-
-.simplicity .chart-wrap { display: flex; flex-direction: column; align-items: center; }
-.simplicity .composite {
-	font-family: var(--font-ui); font-size: 64px; font-weight: 700;
-	color: var(--accent); line-height: 1;
-	letter-spacing: -0.03em;
-	margin-bottom: 4px;
-}
-.simplicity .composite-label {
-	font-family: var(--font-ui); font-size: 11px;
-	color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em;
-	margin-bottom: 18px;
-}
-
-.simplicity .radar { width: 280px; height: 280px; max-width: 100%; }
-.simplicity .radar circle.grid { fill: none; stroke: var(--radar-grid); stroke-width: 1; opacity: 0.5; }
-.simplicity .radar line.axis { stroke: var(--radar-grid); stroke-width: 1; opacity: 0.5; }
-.simplicity .radar polygon.data { fill: var(--radar-fill); stroke: var(--radar-stroke); stroke-width: 2; }
-.simplicity .radar circle.point { fill: var(--radar-stroke); }
-.simplicity .radar text.label { font-family: var(--font-ui); font-size: 11px; fill: var(--muted); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
-
-.simplicity .breakdown { display: flex; flex-direction: column; gap: 14px; }
-.simplicity .dim { display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: baseline; }
-.simplicity .dim .val { font-family: var(--font-ui); font-size: 28px; font-weight: 700; line-height: 1; color: var(--accent); text-align: right; }
-.simplicity .dim .info .name { font-family: var(--font-ui); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
-.simplicity .dim .info .desc { font-size: 14px; color: var(--ink-soft); line-height: 1.4; }
-
 /* Footer */
-footer.meta {
-	margin-top: 72px; padding-top: 18px;
-	border-top: 1px solid var(--rule);
-	font-family: var(--font-mono); font-size: 11px;
-	color: var(--muted); letter-spacing: 0.03em;
-	line-height: 1.6;
-}
+footer.meta { margin-top: 72px; padding-top: 18px; border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: 0.03em; line-height: 1.6; }
 footer.meta .dot { margin: 0 8px; opacity: 0.4; }
-
-/* Title */
-.title-block {
-	margin-bottom: 8px;
-	text-align: left;
-}
-.title-block .title {
-	font-family: var(--font-prose); font-size: 36px; font-weight: 400;
-	letter-spacing: -0.02em; line-height: 1.1;
-	color: var(--ink);
-	margin: 0 0 6px;
-}
-.title-block .subtitle {
-	font-family: var(--font-ui); font-size: 13px;
-	color: var(--muted); letter-spacing: 0.04em;
-}
 </style>
 </head>
 <body>
@@ -252,104 +245,87 @@ footer.meta .dot { margin: 0 8px; opacity: 0.4; }
 		<span class="branch">{{BRANCH}} @ {{COMMIT}}</span>
 		<span class="ts">{{TIMESTAMP}}</span>
 	</div>
-	<button class="toggle" id="modeToggle" aria-label="Toggle dark/light mode">
-		<span id="modeLabel">Auto</span>
-	</button>
+	<div class="right">
+		<div class="score" title="Composite simplicity 0-100"><span class="num">{{COMPOSITE_VAL}}</span><span class="band">{{BAND_LABEL}}</span></div>
+		<button class="toggle" id="modeToggle" aria-label="Toggle dark/light mode"><span id="modeLabel">Auto</span></button>
+	</div>
 </header>
 
 <div class="title-block">
 	<h1 class="title">Ripe Overview</h1>
-	<div class="subtitle">A magazine column about the state of this codebase.</div>
+	<div class="subtitle">Project state at a glance — visual where possible, prose where useful.</div>
 </div>
 
 <section>
 	<h2>Where you are</h2>
-	<p>{{BLOCK_WHERE_YOU_ARE_P1}}</p>
-	<p>{{BLOCK_WHERE_YOU_ARE_P2}}</p>
+	<p>{{BLOCK_WHERE_YOU_ARE}}</p>
 </section>
 
 <section>
-	<h2>Simplicity</h2>
-	<div class="simplicity">
-		<div class="chart-wrap">
-			<div class="composite">{{S_COMPOSITE_VAL}}</div>
-			<div class="composite-label">Composite · 0–100</div>
-			<svg class="radar" viewBox="-160 -160 320 320" aria-label="Simplicity radar chart">
-				<!-- Concentric grid circles -->
-				<circle class="grid" r="120" />
-				<circle class="grid" r="90" />
-				<circle class="grid" r="60" />
-				<circle class="grid" r="30" />
-				<!-- Axes — five-pointed star (top, top-right, bottom-right, bottom-left, top-left) -->
-				<!-- Angles: -90° (top), -18°, 54°, 126°, -162° (going clockwise from top) -->
-				<line class="axis" x1="0" y1="0" x2="0"      y2="-120" />
-				<line class="axis" x1="0" y1="0" x2="114.13" y2="-37.08" />
-				<line class="axis" x1="0" y1="0" x2="70.53"  y2="97.08" />
-				<line class="axis" x1="0" y1="0" x2="-70.53" y2="97.08" />
-				<line class="axis" x1="0" y1="0" x2="-114.13" y2="-37.08" />
-				<!-- Data polygon — five points scaled by per-dimension score (0–100 → 0–120) -->
-				<polygon class="data" id="radarPolygon" points="0,-120 114,-37 71,97 -71,97 -114,-37" />
-				<!-- Dimension labels (positioned just past 120 radius) -->
-				<text class="label" x="0"     y="-138" text-anchor="middle">State</text>
-				<text class="label" x="138"   y="-42"  text-anchor="start">Logic</text>
-				<text class="label" x="85"   y="120"  text-anchor="middle">TSX</text>
-				<text class="label" x="-85"  y="120"  text-anchor="middle">Routing</text>
-				<text class="label" x="-138"  y="-42"  text-anchor="end">Docs</text>
-			</svg>
+	<h2>Timeline · last {{TIMELINE_DAYS}} days</h2>
+	<div class="timeline-frame">
+		<div class="timeline-scroll">
+			{{TIMELINE_EVENTS_SVG}}
 		</div>
-		<div class="breakdown">
-			<div class="dim">
-				<div class="val">{{S_STATE_VAL}}</div>
-				<div class="info">
-					<div class="name">State management</div>
-					<div class="desc">{{S_STATE_LINE}}</div>
-				</div>
-			</div>
-			<div class="dim">
-				<div class="val">{{S_LOGIC_VAL}}</div>
-				<div class="info">
-					<div class="name">Business logic</div>
-					<div class="desc">{{S_LOGIC_LINE}}</div>
-				</div>
-			</div>
-			<div class="dim">
-				<div class="val">{{S_TSX_VAL}}</div>
-				<div class="info">
-					<div class="name">TSX structure</div>
-					<div class="desc">{{S_TSX_LINE}}</div>
-				</div>
-			</div>
-			<div class="dim">
-				<div class="val">{{S_ROUTING_VAL}}</div>
-				<div class="info">
-					<div class="name">Routing</div>
-					<div class="desc">{{S_ROUTING_LINE}}</div>
-				</div>
-			</div>
-			<div class="dim">
-				<div class="val">{{S_DOCS_VAL}}</div>
-				<div class="info">
-					<div class="name">Documentation</div>
-					<div class="desc">{{S_DOCS_LINE}}</div>
-				</div>
-			</div>
+		<div class="timeline-legend">
+			<span><span class="swatch" style="background:var(--lane-commit);"></span>Commit</span>
+			<span><span class="swatch" style="background:var(--lane-audit-h);"></span>Audit H</span>
+			<span><span class="swatch" style="background:var(--lane-audit-m);"></span>Audit M</span>
+			<span><span class="swatch" style="background:var(--lane-audit-l);"></span>Audit L</span>
+			<span><span class="swatch" style="background:var(--lane-design);"></span>Design</span>
+			<span><span class="swatch" style="background:var(--lane-handoff);"></span>Handoff</span>
+			<span><span class="swatch" style="background:var(--lane-plan);"></span>Plan</span>
+		</div>
+	</div>
+	<p class="framing">{{TIMELINE_FRAMING}}</p>
+</section>
+
+<section>
+	<h2>Stalled threads</h2>
+	<div class="stalled">{{STALLED_ITEMS}}</div>
+</section>
+
+<section>
+	<h2>Shipped vs drafted</h2>
+	<div class="ledger">
+		<div class="col shipped">
+			<h3><span>Shipped</span><span class="count">{{SHIPPED_COUNT}}</span></h3>
+			<table>{{SHIPPED_ITEMS}}</table>
+		</div>
+		<div class="col drafted">
+			<h3><span>Drafted (pending)</span><span class="count">{{DRAFTED_COUNT}}</span></h3>
+			<table>{{DRAFTED_ITEMS}}</table>
 		</div>
 	</div>
 </section>
 
 <section>
-	<h2>Where you've been</h2>
-	<p>{{BLOCK_WHERE_YOU_BEEN_P1}}</p>
-	<p>{{BLOCK_WHERE_YOU_BEEN_P2}}</p>
+	<h2>Branch activity · last 14 days</h2>
+	<div class="heatmap">
+		<div class="grid-wrap">
+			<div class="branches">{{HEATMAP_BRANCHES}}</div>
+			<div class="grid">
+				<div class="day-labels">{{HEATMAP_DAY_LABELS}}</div>
+				<div class="cells">{{HEATMAP_GRID}}</div>
+			</div>
+		</div>
+		<div class="scale">
+			<span>0</span>
+			<span class="swatch" style="background:var(--heat-0);"></span>
+			<span class="swatch" style="background:var(--heat-1);"></span>
+			<span class="swatch" style="background:var(--heat-2);"></span>
+			<span class="swatch" style="background:var(--heat-3);"></span>
+			<span class="swatch" style="background:var(--heat-4);"></span>
+			<span>4+ commits / day</span>
+		</div>
+	</div>
 </section>
 
 <section>
 	<h2>Where you might go</h2>
-	<p>{{BLOCK_GO_INTRO}}</p>
-	<ol class="threads">
-		{{BLOCK_GO_LIST_ITEMS}}
-	</ol>
-	<div class="pick">{{BLOCK_GO_CLOSING}}</div>
+	<p>{{GO_INTRO}}</p>
+	<ol class="threads">{{GO_LIST_ITEMS}}</ol>
+	<div class="pick">{{GO_CLOSING}}</div>
 </section>
 
 <footer class="meta">
@@ -366,25 +342,15 @@ footer.meta .dot { margin: 0 8px; opacity: 0.4; }
 	const STORAGE_KEY = 'ripe-overview-mode';
 
 	function autoModeForHour(hour) {
-		// Light from 6am to 6pm local time; dark otherwise.
 		return (hour >= 6 && hour < 18) ? 'light' : 'dark';
 	}
-
 	function applyMode(mode) {
-		if (mode === 'dark') {
-			root.classList.add('dark');
-		} else {
-			root.classList.remove('dark');
-		}
+		if (mode === 'dark') root.classList.add('dark');
+		else root.classList.remove('dark');
 	}
-
 	function refreshLabel(state) {
-		// state: 'auto-light' | 'auto-dark' | 'light' | 'dark'
-		if (state.indexOf('auto') === 0) {
-			label.textContent = 'Auto · ' + state.split('-')[1];
-		} else {
-			label.textContent = state.charAt(0).toUpperCase() + state.slice(1);
-		}
+		if (state.indexOf('auto') === 0) label.textContent = 'Auto · ' + state.split('-')[1];
+		else label.textContent = state.charAt(0).toUpperCase() + state.slice(1);
 	}
 
 	const stored = localStorage.getItem(STORAGE_KEY);
@@ -403,7 +369,6 @@ footer.meta .dot { margin: 0 8px; opacity: 0.4; }
 	}
 
 	toggle.addEventListener('click', function() {
-		// Cycle: auto-X → light → dark → auto-X
 		if (mode.indexOf('auto') === 0) {
 			mode = 'light';
 		} else if (mode === 'light') {
@@ -419,39 +384,6 @@ footer.meta .dot { margin: 0 8px; opacity: 0.4; }
 		applyMode(mode);
 		refreshLabel(mode);
 	});
-
-	// Update the radar polygon from the per-dimension data values.
-	// The order matches the SVG label order: State (top), Logic (top-right),
-	// TSX (bottom-right), Routing (bottom-left), Docs (top-left).
-	const values = {
-		state:   parseFloat('{{S_STATE_VAL}}'),
-		logic:   parseFloat('{{S_LOGIC_VAL}}'),
-		tsx:     parseFloat('{{S_TSX_VAL}}'),
-		routing: parseFloat('{{S_ROUTING_VAL}}'),
-		docs:    parseFloat('{{S_DOCS_VAL}}'),
-	};
-
-	// Polygon vertices at angles -90, -18, 54, 126, -162 (degrees from x-axis).
-	// Pre-computed unit vectors (cos, sin) for each:
-	const axes = [
-		{ key: 'state',   x:  0.0000, y: -1.0000 },
-		{ key: 'logic',   x:  0.9511, y: -0.3090 },
-		{ key: 'tsx',     x:  0.5878, y:  0.8090 },
-		{ key: 'routing', x: -0.5878, y:  0.8090 },
-		{ key: 'docs',    x: -0.9511, y: -0.3090 },
-	];
-
-	const polygon = document.getElementById('radarPolygon');
-	if (polygon && !isNaN(values.state)) {
-		const points = axes.map(function(ax) {
-			const v = values[ax.key];
-			const r = (isNaN(v) ? 0 : Math.max(0, Math.min(100, v))) * 1.2; // 0-120 radius
-			const x = (ax.x * r).toFixed(2);
-			const y = (ax.y * r).toFixed(2);
-			return x + ',' + y;
-		}).join(' ');
-		polygon.setAttribute('points', points);
-	}
 })();
 </script>
 
