@@ -56,6 +56,14 @@ HTML at `<project>/docs/audits/<YYYY-MM-DD>-ripe-audit.html`. Same shape as the 
 
 The HTML's JavaScript MUST use literal `>` and `&` characters inside `<script>` blocks — browsers don't decode entities inside `<script>`, and entity-escaped JS is a silent parse error. See `report-template.html`.
 
+> **Related — the `html-report` skill.** This audit ships its own purpose-built
+> `report-template.html` (per-finding cards, severity badges, reviewer comment fields) —
+> keep using it for audits. The general **`html-report`** skill is the same
+> self-contained-single-file philosophy applied to *non-audit* reports (process
+> explainers, decision records, write-ups); reach for `/html-report` when you want a
+> standalone report that isn't a Ripe audit. The audit's bespoke format is the better fit
+> here; the cross-reference is just so the two stay aware of each other.
+
 ## Skill OR /ripe-audit slash command — both
 
 Ship as both:
