@@ -26,7 +26,7 @@ A passing audit means a new contributor can read any file in the project and und
 
 ## How to run
 
-1. Read the checklists for each lens — `checklists/components.md`, `checklists/store.md`, `checklists/routing.md`, `checklists/clean-code.md`, `checklists/organisation.md`.
+1. Read the checklists for each lens — `checklists/components.md`, `checklists/store.md`, `checklists/routing.md`, `checklists/tests.md`, `checklists/clean-code.md`, `checklists/organisation.md`.
 2. For each check, run the listed greps / heuristics across the project's source tree (`src/` by default, or the scope path passed via `/ripe-audit <scope>`).
 3. For each hit, **auto-grade** per `grading.md` (H/M/L). The reviewer can override in their per-card comment.
 4. Read the project's `CLAUDE.md` — note any documented deviations and mark them as `(Skip)` rather than re-litigating.
@@ -43,7 +43,8 @@ The audit does NOT modify source files. It only reads. Fixes are the reviewer's 
 
 ## Output format
 
-HTML at `<project>/docs/audits/<YYYY-MM-DD>-ripe-audit.html`. Same shape as the existing review formats in `mce-demo-portal/docs/audits/`:
+HTML at `<project>/docs/audits/<YYYY-MM-DD>-ripe-audit.html`, built from
+[report-template.html](report-template.html) — that file is the authority on the shape. In outline:
 
 - Sticky header with date, branch, commit, copy-comments button
 - Mission statement banner ("is the system simple and tiny enough...")
@@ -80,6 +81,7 @@ Ship as both:
 | [checklists/components.md](checklists/components.md) | Per-rule checks against `building-ripe-components` |
 | [checklists/store.md](checklists/store.md) | Per-rule checks against `building-ripe-store` |
 | [checklists/routing.md](checklists/routing.md) | Per-rule checks against `building-ripe-routing` |
+| [checklists/tests.md](checklists/tests.md) | Per-rule checks against `building-ripe-tests` |
 | [checklists/clean-code.md](checklists/clean-code.md) | File size, JSX depth, helper count, dead code |
 | [checklists/organisation.md](checklists/organisation.md) | Folder structure, imports, naming, test locations |
 | [report-template.html](report-template.html) | Skeleton interactive HTML — fill in findings, write to project's docs/audits/ |

@@ -83,7 +83,11 @@ For each hit, check whether the selector is wrapped in `createSelector(...)` som
 
 ## STORE-M-PATCH-STATE-MACHINE — `patch: Partial<XState>` on a tagged-union state
 
-**Rule source:** (proposed — see [B8 handoff doc in mce-demo-portal](file:///Users/yehuda.g/Dev/mce-demo-portal/docs/handoffs/2026-05-25-patch-state-antipattern-followup.md) for context)
+**Rule source:** Proposed rule — no skill file states it yet. The reasoning, stated here so this
+check is self-contained: when a state shape is a tagged union discriminated by an enum'd `status`,
+a `patch: Partial<XState>` payload lets a caller write any subset of any variant's fields. That
+defeats the discriminator — you can land in `status: 'error'` while still carrying `data` from the
+success variant. Each legal transition should be its own action, naming what happened.
 **Severity:** M
 **Heuristics:**
 - Find action payload interfaces:
@@ -93,7 +97,7 @@ For each hit, check whether the selector is wrapped in `createSelector(...)` som
 - Flag payloads whose ONLY field is `patch: Partial<...>` where `...` is a state shape that has an enum'd `status` field.
 **False positives:**
 - Entity PATCH payloads (`{ shorthand, patch: Partial<Pick<Demo, 'name' | 'description'>> }`) — these are fine; the patch is over independent entity fields, not a tagged union.
-**Fix template:** Split into one action per phase transition. Payloads carry the new data, never the status (the action IS the status). See B8 handoff doc.
+**Fix template:** Split into one action per phase transition. Payloads carry the new data, never the status (the action IS the status).
 
 ---
 

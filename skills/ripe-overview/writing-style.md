@@ -95,7 +95,7 @@ Lists are allowed only in *Where you might go* (the 3–5 open threads). Never i
 
 ✗ **Wrong** — every voice rule violated:
 
-> The mce-demo-portal project is leveraging a comprehensive set of robust Redux Toolkit patterns to manage its rapidly evolving feature set. Several branches handle various concerns across the codebase. Moreover, the team has been quite active recently, with many improvements landing. It's worth noting that the project follows best-in-class practices, making it a powerful example of modern frontend architecture.
+> This project is leveraging a comprehensive set of robust Redux Toolkit patterns to manage its rapidly evolving feature set. Several branches handle various concerns across the codebase. Moreover, the team has been quite active recently, with many improvements landing. It's worth noting that the project follows best-in-class practices, making it a powerful example of modern frontend architecture.
 
 ✓ **Right** — every voice rule applied:
 

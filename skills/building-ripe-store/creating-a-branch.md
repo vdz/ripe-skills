@@ -322,13 +322,13 @@ export const store = configureStore({
 });
 ```
 
-**`store/listener.ts`** — add to the `listeners` array:
+**`store/listener.ts`** — add to the `listenerGroups` array:
 
 ```typescript
 import { listener as productsListener } from './products/products.listener';
 
-const listeners: Listener[][] = [
-	// ...existing listeners
+const listenerGroups: Listener[][] = [
+	// ...existing listener arrays
 	productsListener,
 ];
 ```

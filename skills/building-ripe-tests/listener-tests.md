@@ -280,8 +280,11 @@ The audit's `TEST-M-HAND-ROLLED-STORE` flags this.
 
 ## Worked Examples in the Wild
 
-Real files in `mce-demo-portal`:
-- `src/store/auth/__tests__/auth.listener.test.ts` — canonical: setLocation hydration, service-module stubs, once-only guard
-- `src/store/newDemo/__tests__/newDemo.listener.persistence.test.ts` — fake timers, debounced persistence
-- `src/store/ui/__tests__/ui.listener.theme.test.ts` — localStorage + DOM service-module bootstrap
-- `src/store/current/__tests__/current.listener.upload.test.ts` — multi-branch pipeline test
+Real files in `mce-blueprint`:
+- `src/store/plan/__tests__/plan.listener.test.ts` — canonical intent-chain test: a `*Requested`
+  action goes in, and the assertion is made on the resulting **state** (`harness.store.getState()`
+  under `vi.waitFor`) rather than on the dispatched action list. Also shows nested `describe` blocks
+  per intent, and the "no-op when the target doesn't exist" case that proves the guard lives in the
+  reducer, not the listener.
+- `src/test-utils.ts` — the harness itself: `makeTestHarness(listeners)` and `loc(pathname, search, hash)`.
+  Read this first; every listener test is a variation on it.

@@ -127,7 +127,12 @@ import { fetchDemos, fetchDemosSuccess } from '../demos.actions';
 
 ## Worked Examples in the Wild
 
-Real files in `mce-demo-portal`:
-- `src/store/auth/__tests__/auth.reducer.test.ts` — simplest shape; identity-field assignment
-- `src/store/demos/__tests__/demos.reducer.test.ts` — fetch lifecycle with prior state piping
-- `src/store/ui/__tests__/ui.reducer.test.ts` — multiple unrelated actions; one `describe` per action
+Real files in `mce-blueprint`:
+- `src/store/ui/__tests__/ui.reducer.test.ts` — one `describe` per concern (altitude, selection,
+  viewport, dirty tracking, appPreview). The `selection` block is the one to copy: every transition
+  is paired with its no-op counterpart ("clears a matching selection" / "leaves a non-matching
+  selection alone"). The `viewportSized` case is the clearest example of asserting a *merge* rather
+  than a replace.
+- `src/store/plan/__tests__/plan.reducer.test.ts` — cascade cases: `screenRemoved` deleting
+  dependent edges and its hosted flow. Shows how to assert an invariant ("a plan must never hold
+  an orphan flow") rather than a field value.

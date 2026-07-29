@@ -26,6 +26,8 @@ components/
 Every component follows this exact order:
 
 ```typescript
+import type { ProductCardProps } from './types';
+
 export function ProductCard({ productId }: ProductCardProps) {
 	// ═══ SETUP ═══
 	const { t } = useTranslation();
@@ -99,15 +101,41 @@ Tabs throughout — for `.tsx`, `.styled.tsx`, `.ts`. **Matches the ESLint rule 
 
 ## Types File
 
-Derive from store types rather than duplicating:
+**Every component-specific type or interface lives in the component's adjacent `types.ts` — NEVER declared inline in the `.tsx`.** This is unconditional. It holds for a lone `Props` interface with no store derivation, and even for a trivial one like `{ children: React.ReactNode }`. There is no size or shape exception: if it's a type the component owns, it goes in `types.ts`.
+
+The `.tsx` then imports its props type:
 
 ```typescript
+import type { ProductCardProps } from './types';
+```
+
+Deriving from store types (rather than duplicating) is just ONE case this file handles — it is NOT the condition that decides whether a `types.ts` exists. When a prop mirrors store state, derive it so it stays in sync automatically:
+
+```typescript
+// types.ts — store-derived
 import type { Product } from '@/store/products/types';
 
 export interface ProductCardProps {
-	id: Product['id'];  // stays in sync automatically
+	/** Identifies which product to render; the component selects the rest from the store. */
+	id: Product['id'];  // stays in sync with the store type automatically
 }
 ```
+
+A purely-local props type — no store import at all — ALSO lives in `types.ts`, never inline:
+
+```typescript
+// types.ts — purely local, no store derivation
+import type { ReactNode } from 'react';
+
+export interface PanelLayoutProps {
+	/** Content rendered inside the panel body. */
+	children: ReactNode;
+	/** Heading shown at the top of the panel. */
+	title: string;
+}
+```
+
+JSDoc every interface field — the monorepo requires it, with a unit suffix on any measured quantity.
 
 ## JSX Rules
 

@@ -164,6 +164,8 @@ The app should fetch and populate state **before** (or alongside) the components
 
 The canonical signal is a `setLocation` action, dispatched from the root `App` component whenever the route changes. This is the **one legitimate `useEffect` at the app boundary** — it bridges React Router into the Redux world so all listeners can react to navigation.
 
+The payload carries the **full `Location` object**, not just `pathname` — listeners need `search`, `hash`, and `state` too. Read the path off it with `action.payload.location.pathname`. Canonical definition: [building-ripe-routing/setup.md](../building-ripe-routing/setup.md).
+
 ```typescript
 // App.tsx — the single place that connects routing to the store
 function App() {
@@ -171,7 +173,7 @@ function App() {
 	const dispatch = useAppDispatch();
 
 	useEffect(() => {
-		dispatch(setLocation({ location: location.pathname }));
+		dispatch(setLocation({ location }));
 	}, [location, dispatch]);
 
 	return <Outlet />;
@@ -185,7 +187,7 @@ A page-owning branch then listens for the route it cares about and hydrates:
 {
 	actionCreator: setLocation,
 	effect: async (action, { dispatch }) => {
-		if (matchPath('/products', action.payload.location)) {
+		if (matchPath('/products', action.payload.location.pathname)) {
 			const payload = await fetchProductsApi();
 			dispatch(fetchProductsSuccess(payload));
 		}

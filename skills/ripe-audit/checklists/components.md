@@ -64,6 +64,7 @@ rg -nE '\buseState\b' src/components
   rg -n 'interface \w+Props' src/components -A 6
   ```
   Flag any prop typed as a full entity (`Demo`, `Product`, `Order`, etc.).
+  Note: props interfaces must live in `types.ts`, not inline in the `.tsx` — see COMPONENT-M-INLINE-TYPE below.
 - Inspect the parent's JSX:
   ```
   rg -nE '<\w+Card\s+\w+=\{[^}]+\}' src/components
@@ -71,6 +72,22 @@ rg -nE '\buseState\b' src/components
 **False positives:**
 - Top-level page components legitimately receive the entity from a selector. The rule is about CHILD components receiving from parents.
 **Fix template:** Change the prop to the entity ID (`shorthand: Demo['shorthand']`). Child does the selector lookup itself. Derived flags (e.g. `active`) come from selectors inside the child, not from the parent.
+
+---
+
+## COMPONENT-M-INLINE-TYPE — Component-specific type declared inline in `.tsx`
+
+**Rule source:** building-ripe-components/SKILL.md → Types File ("Every component-specific type or interface lives in the component's adjacent `types.ts` — NEVER declared inline in the `.tsx`")
+**Severity:** M
+**Heuristics:**
+```
+rg -n '^(export )?(interface|type) ' -g '*.tsx' src/components | rg -v 'styled|__tests__'
+```
+flags components that declare a type or interface (e.g. `...Props`) inline in the `.tsx` instead of in the adjacent `types.ts`. This holds even for a lone `Props` interface with no store derivation, or a trivial `{ children: React.ReactNode }`.
+**False positives:**
+- `.styled.tsx` files (already excluded above) — transient/style helper types may live next to their styled component.
+- Test files under `__tests__/` (already excluded above).
+**Fix template:** Move the type to the component's adjacent `types.ts` and import it (`import type { ProductCardProps } from './types';`). JSDoc every field on the way.
 
 ---
 

@@ -247,6 +247,12 @@ import { Toast as ToastInternal } from '../Toast/Toast';   // if needed
 
 ## Worked Examples in the Wild
 
-Real files in `mce-demo-portal`:
-- `src/components/Toast/__tests__/Toast.test.tsx` — canonical: Provider + harness + dispatch assertion
-- (More component tests forthcoming as the project's component test coverage grows.)
+Real files in `mce-blueprint`:
+- `src/components/Toolbar/__tests__/Toolbar.test.tsx` — canonical shape: a local
+  `renderToolbar(harness)` helper wrapping `<Provider store={harness.store}>`, then click → assert
+  the resulting store state. The Preview toggle block walks all three states (closed, opened, closed
+  again), pairing the user-visible `aria-pressed` attribute with the store value behind it — which is
+  the useful habit: assert what the user sees *and* what the store holds, not one or the other.
+- `src/components/SettingsDrawer/__tests__/SettingsDrawer.test.tsx` — driving a component by
+  *dispatching into the store* (`selectionSet`) instead of passing props, then asserting the
+  edit round-trips back out as `screenUpdated`. Also the fallback case when an id no longer resolves.

@@ -21,8 +21,9 @@ Process in this order; findings accumulate into a single report:
 1. `checklists/store.md` — usually the most findings, biggest leverage.
 2. `checklists/components.md`
 3. `checklists/routing.md`
-4. `checklists/clean-code.md`
-5. `checklists/organisation.md`
+4. `checklists/tests.md`
+5. `checklists/clean-code.md`
+6. `checklists/organisation.md`
 
 For each check:
 - Run the listed grep(s) / heuristic(s).

@@ -72,19 +72,16 @@ Tests live in `__tests__/` — never alongside source files. Imports use `../` t
 
 ```typescript
 // store/types.ts (excerpt)
-import type {
-	ActionCreatorWithPayload,
-	ListenerEffectAPI,
-	AnyAction,
-	ActionCreator,
-} from "@reduxjs/toolkit";
+import type { ListenerEffectAPI, AnyAction } from "@reduxjs/toolkit";
 import type { RootState, AppDispatch } from "./store";
 
+export interface BranchActionCreator {
+	type: string;
+	match: (action: unknown) => boolean;
+}
+
 export interface Listener {
-	actionCreator?:
-		| ActionCreatorWithPayload<unknown, string>
-		| ActionCreator<string>
-		| Array<ActionCreatorWithPayload<unknown, string> | ActionCreator<string>>;
+	actionCreator?: BranchActionCreator | BranchActionCreator[];
 	matcher?: (action: AnyAction) => boolean;
 	effect: (
 		action: AnyAction,
@@ -93,7 +90,20 @@ export interface Listener {
 }
 ```
 
-> The `unknown` payload generic and `AnyAction` parameter type satisfy `@typescript-eslint/no-explicit-any`. Effect bodies can still access `action.payload.X` as before because `AnyAction` carries an `any`-typed `payload` from the library types — the rule only flags `any` written in your code, not in library type definitions. For strict payload typing at the use site, narrow with a cast: `const { userId } = (action as PayloadAction<{ userId: string }>).payload;`.
+> **Why `actionCreator` is structural.** Under `strict`, no concrete type argument to
+> `ActionCreatorWithPayload<T>` accepts every action creator. `<unknown>` rejects **both** kinds,
+> because call-signature parameters are contravariant (`unknown` is assignable to neither `void`
+> nor a concrete payload type). `<never>` also rejects both, because `match` is a type predicate
+> and puts `payload` in a covariant position. `<any>` accepts both, but only by disabling
+> `@typescript-eslint/no-explicit-any`. `{ type, match }` accepts every form with no `any` and no
+> lint suppression — and it is what RTK itself reads: `startListening` does
+> `predicate = actionCreator.match`. Verified against RTK 2.12 / tsc 5.9; see
+> [store-templates.md](../ripe-init/store-templates.md) for the per-annotation table.
+
+> `AnyAction` on `effect` lets bodies read `action.payload.X` directly, because `AnyAction` carries
+> an `any`-typed `payload` from the library types — the lint rule only flags `any` written in your
+> code. For strict payload typing at the use site, narrow with a cast:
+> `const { userId } = (action as PayloadAction<{ userId: string }>).payload;`.
 
 `LOADING_STATES` and `LoadingState` also live in `store/types.ts`. See [store-templates.md](../ripe-init/store-templates.md) for the canonical scaffold (const hashmap + derived type, not a TS `enum`).
 
@@ -114,11 +124,11 @@ configureStore({
 });
 ```
 
-**`store/listener.ts`** — add to the `listeners` array:
+**`store/listener.ts`** — add to the `listenerGroups` array:
 ```typescript
 import { listener as productsListener } from './products/products.listener';
 // ...
-const listeners: Listener[][] = [
+const listenerGroups: Listener[][] = [
 	// ...existing
 	productsListener,
 ];
