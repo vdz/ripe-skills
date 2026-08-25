@@ -18,12 +18,12 @@
 
 ## Six Rules for State Structure
 
-1. **Single source of truth** — data lives in one place, referenced by ID elsewhere
+1. **Single source of truth** — data lives in one place, referenced by ID elsewhere. Duplicated data drifts: two copies means two writers. One canonical copy plus ID references means a single write is seen everywhere.
 2. **Reflects what's shown** — state mirrors what the UI needs to display
 3. **Optimized for access** — arrays for order, objects for O(1) lookup
 4. **Cache on mutation, not read** — compute at write time, not render time
-5. **Features own their branch** — `cart` owns `cart`, `user` owns `user`
-6. **Always has defaults** — no `undefined` states; always define a full default
+5. **Features own their branch** — `cart` owns `cart`, `user` owns `user`. Ownership and blast-radius stay obvious: changing a feature's shape touches only its files, and the branch name answers "where does this state live?"
+6. **Always has defaults** — no `undefined` states; always define a full default, so the shape is knowable from `defaultState` alone and selectors never need `?.` guards (see [Default State Requirements](#default-state-requirements))
 
 ## Dual Structure Pattern
 

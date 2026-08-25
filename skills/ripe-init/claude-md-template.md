@@ -19,8 +19,8 @@ This project follows **The Ripe Method** — a strict separation of concerns:
 
 - **Components** are passive and reactive — they read from the store and dispatch actions. No business logic, no API calls, no `useEffect` for data loading.
 - **Reducers** do simple assignment — no `if` statements, no logic, no API calls.
-- **Listeners** orchestrate everything — they react to actions, call decision functions, make API calls, and dispatch results.
-- **Decision functions** live in `modules/` — pure functions, no Redux, independently testable.
+- **Listeners** orchestrate everything and own all business decisions — they react to actions, call pure helpers, make API calls, and dispatch results.
+- **Helpers** live in `modules/` — genuinely pure, reusable functions called *from* listeners; no Redux, no decisions of their own. This keeps listeners thin and lets pure logic be unit-tested without a store.
 
 ## TSX Return Statement Rules (CRITICAL)
 1. Semantic names only — no implementation names
@@ -42,7 +42,7 @@ import { Header, Title, Content, Actions } from "./ComponentName.styled";
 ## Key Files
 ```
 src/
-├── modules/           # Pure business logic (no Redux)
+├── modules/           # Pure helpers called from listeners (no Redux)
 ├── store/
 │   ├── store.ts       # configureStore + typed hooks
 │   ├── listener.ts    # Listener middleware + registration

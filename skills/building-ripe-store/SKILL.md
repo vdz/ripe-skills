@@ -24,10 +24,10 @@ Reducers MAY: assign payload fields to state slots; maintain collection invarian
 `items: string[]` for order + `byId: Record<string, T>` for O(1) lookup. Never one without the other. See [state-shape.md](state-shape.md) for the canonical pattern and the optional `filteredItems` projection.
 
 **4. State has complete defaults.**
-No `undefined`. Use `null` for optional refs, `LOADING_STATES.idle` for status, `[]` / `{}` for collections.
+No `undefined`. Use `null` for optional refs, `LOADING_STATES.idle` for status, `[]` / `{}` for collections. A fully-defaulted tree makes the shape knowable from `defaultState` alone, lets every selector read fields without `?.` guards, and means a fresh branch renders its empty state instead of throwing on `undefined.map`. The line to hold: `null` is an intentional "no value yet" — it's data. `undefined` is "shape unknown" — a hole in the tree. See [state-shape.md](state-shape.md#default-state-requirements).
 
 **5. Listeners hydrate; components don't fetch.**
-Components don't `dispatch(fetchX())` on mount. Listeners react to navigation, auth, or init signals. See [listeners.md](listeners.md#pattern-5-preemptive-hydration-via-setlocation).
+Components don't `dispatch(fetchX())` on mount. Listeners react to navigation, auth, or init signals — so no component owns both "decide when to fetch" and "render the result". That coupling is the thing Ripe removes: left in place it spreads — every page repeats it, every test mocks it. See [listeners.md](listeners.md#pattern-5-preemptive-hydration-via-setlocation).
 
 **6. Derived selectors are memoised — but not every prop needs a named selector.**
 Any *named* selector that returns a new array, object, or computed structure on every call must be wrapped with `createSelector` from `@reduxjs/toolkit` (already bundled). Plain function selectors are right for direct slice reads, lookups by id, and primitive returns — they're naturally reference-stable. Components don't need a named selector for every prop read; inline `useAppSelector((s) => s.x.y)` is fine for one-off direct reads. Named selectors earn their place when they're branch-level useful, derived/computed, or carry semantic meaning. See [state-shape.md](state-shape.md#selectors-and-memoisation).
@@ -62,7 +62,9 @@ Tests live in `__tests__/` — never alongside source files. Imports use `../` t
 | Creating a brand-new feature branch end-to-end | [creating-a-branch.md](creating-a-branch.md) |
 | Adding a new action or payload to an existing branch | [action-payloads.md](action-payloads.md) |
 | Designing or extending state (collections, filters, defaults) | [state-shape.md](state-shape.md) |
+| Writing or naming a selector — inline vs named vs memoised | [selectors.md](selectors.md) |
 | Writing or modifying a listener (single, matcher, debounce, hydration, error handling) | [listeners.md](listeners.md) |
+| Deciding which tests a new branch ships with | [testing.md](testing.md) |
 | Looking up the canonical scaffold for root files | [store-templates.md](../ripe-init/store-templates.md) |
 | Anything routing-related | `building-ripe-routing` skill |
 

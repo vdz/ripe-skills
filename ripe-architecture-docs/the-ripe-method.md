@@ -108,7 +108,7 @@ Before we dive into the mechanics, here's the full set of principles that guide 
 |---------|---------------|
 | **Declarative Code** | Describe *what* you want, not *how* to get it. |
 | **Written For Humans** | Optimize for readability. Clear names, short functions, obvious logic. |
-| **Short Files** | ~100 lines per file. If it's longer, split it. |
+| **Short Files** | ~100 lines per file — one screen, one idea. Longer means a second responsibility crept in: split *it* out. |
 
 ### Structure
 
@@ -116,7 +116,7 @@ Before we dive into the mechanics, here's the full set of principles that guide 
 |---------|---------------|
 | **Uniform Structures** | Similar things look similar. Every component folder, every store branch — same shape. |
 | **Fixed File Structure** | Same folder layout, every project. Navigate blindfolded. |
-| **Loose Coupling** | Modules depend on abstractions, not implementations. |
+| **Loose Coupling** | Branches never call each other's functions — they communicate by dispatching actions. The action vocabulary is the abstraction layer. |
 
 ### Data Flow
 
@@ -131,7 +131,7 @@ Before we dive into the mechanics, here's the full set of principles that guide 
 | Element | What it means |
 |---------|---------------|
 | **Isolated Business Logic** | All logic lives in listeners. Not scattered across components. |
-| **Composition Over Configuration** | Build complex features by combining simple pieces. |
+| **Composition Over Configuration** | Build complex features by combining simple pieces — explicit JSX children, not config arrays. The return is the page map. |
 | **Quick Start Ready** | Clone, install, run. No tribal knowledge required. |
 
 ### Vocabulary
@@ -285,7 +285,7 @@ Describe the state first. Then write the code. Always.
 3. **Optimized for quick fetching.** Arrays for order, objects for O(1) lookup.
 4. **Caching computed on mutation.** Not on read.
 5. **Features have their own branch.** Cart gets `cart`, user gets `user`.
-6. **Always comes with defaults.** No undefined states. Ever.
+6. **Always comes with defaults.** No undefined states. Ever — a fully-defaulted tree means selectors never guard with `?.` and an empty branch renders instead of crashing.
 
 ### What It Looks Like
 
@@ -588,7 +588,7 @@ modules/
 | Module files | camelCase, reflects function | `useUserHydration.ts`, `timeUtils.ts` |
 | Everything else | lowercase | `types.ts`, `index.ts` |
 
-**File length target: ~100 lines.** If a file grows beyond that, split it. Short files are readable files.
+**File length target: ~100 lines.** That's roughly one screen — the whole file stays holdable in working memory (a human's or an agent's) without scrolling. The number is a proxy for single responsibility: a file that outgrows it has picked up a second job, so split out *that job* — don't cut mechanically at line 100. Short files also keep diffs reviewable and make the file name a reliable index of the file's one purpose.
 
 The payoff: when you see `store/user/api/fetchUserProfile.ts`, you know — without opening it — that it's an API function in the store layer, belonging to the user branch, that fetches a user profile. The file name *is* the documentation.
 

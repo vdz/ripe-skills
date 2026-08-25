@@ -21,6 +21,8 @@ components/
 
 `index.ts` contains only: `export { ProductCard } from './ProductCard';`
 
+The uniform shape holds even for a one-file component: any component can grow styles, types, or tests without a restructure, and the pure re-export `index.ts` gives every component a stable public import path while its internals stay free to split. Collapsing "simple" components back to loose `.tsx` files breaks the navigate-any-project-blindfolded property the fixed structure buys.
+
 ## Component Anatomy
 
 Every component follows this exact order:
@@ -199,8 +201,8 @@ Multi-line handlers should be extracted to SETUP.
 
 ### Other JSX Rules
 
-- **Tooltips:** Use native `title` attribute, not a `<Tooltip>` wrapper
-- **Visual separators:** CSS (`border-top`) on styled components, not `<Divider />` in JSX
+- **Tooltips:** Use native `title` attribute, not a `<Tooltip>` wrapper. A tooltip is presentation with no content or state of its own — a `<Tooltip>` component forces ephemeral open/closed state that Ripe would then have to model in the store, while native `title` is zero-JS and accessible for free. A real tooltip component is warranted only for rich content or controlled positioning, and that's a deliberate, owner-approved deviation.
+- **Visual separators:** CSS (`border-top`) on styled components, not `<Divider />` in JSX. A divider is presentation, not content — a JSX node with no semantic meaning breaks "the return reads as a content document". The border belongs on the styled component it separates.
 - **Clickable elements:** Must have `cursor: pointer` in styled definition
 
 ### Every Interactive Element Must Dispatch (or Be Inert by Tag)
@@ -269,6 +271,14 @@ const panels = [
 // ... panels.filter().map()
 ```
 
+**Why explicit wins:** the return *is* the page map — explicit children are statically greppable, and each child self-gates on state, so the page's structure is readable in one file. A config array moves structure into data the reader must execute in their head; "what renders here?" stops having a greppable answer.
+
+**Exceptions are rare and always approval-gated.** Config-driven rendering is never the default; each use needs explicit engineer sign-off:
+- A family of very similar components that render together, where grouping and automating their rendering makes the composition *easier* to understand than listing them out.
+- An A/B-testing mechanism, where which variant renders is runtime data by nature.
+
+If you think you've hit one of these, ask — don't decide alone.
+
 Use styled-component inheritance for shared visual patterns (`styled(Card)` in step's `.styled.tsx`).
 
 ## Clean Return Statement
@@ -330,7 +340,7 @@ const branches = { b1: { result: "Return to Customer", reason: "working, no faul
 - [ ] No raw HTML, no ternaries, no inline cn() in return
 - [ ] Styled components use classes, not props
 - [ ] No useEffect for data loading
-- [ ] File is ~100 lines or under
+- [ ] File is ~100 lines or under (over = a second responsibility crept in — split it out, don't trim)
 - [ ] Tests in __tests__/ subdirectory
 ```
 
