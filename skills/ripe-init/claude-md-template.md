@@ -18,7 +18,7 @@ Generate this file at the project root. Replace `PROJECT_NAME` and fill in proje
 This project follows **The Ripe Method** — a strict separation of concerns:
 
 - **Components** are passive and reactive — they read from the store and dispatch actions. No business logic, no API calls, no `useEffect` for data loading.
-- **Reducers** do simple assignment — no `if` statements, no logic, no API calls.
+- **Reducers** do simple assignment and mechanical data maintenance — an `if` may guard a data invariant (e.g. does this member exist before delete/update); never business decisions, never API calls.
 - **Listeners** orchestrate everything and own all business decisions — they react to actions, call pure helpers, make API calls, and dispatch results.
 - **Helpers** live in `modules/` — genuinely pure, reusable functions called *from* listeners; no Redux, no decisions of their own. This keeps listeners thin and lets pure logic be unit-tested without a store.
 
@@ -29,6 +29,7 @@ This project follows **The Ripe Method** — a strict separation of concerns:
 4. Short inline dispatch lambdas ARE OK
 5. Visual separators are CSS, not components
 6. Tooltips use native title attribute
+7. Every semantic element carries a `data-testid` — kebab-case, component-prefixed
 
 ## Import Conventions
 ```typescript

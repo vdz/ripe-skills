@@ -40,9 +40,9 @@ export function ProductCard({ productId }: ProductCardProps) {
 
 	// ═══ RETURN ═══
 	return (
-		<ProductCardWrapper>
-			<ProductName>{product.name}</ProductName>
-			<PriceTag>{formatDisplayPrice()}</PriceTag>
+		<ProductCardWrapper data-testid="product-card">
+			<ProductName data-testid="product-card-name">{product.name}</ProductName>
+			<PriceTag data-testid="product-card-price">{formatDisplayPrice()}</PriceTag>
 		</ProductCardWrapper>
 	);
 
@@ -59,6 +59,7 @@ export function ProductCard({ productId }: ProductCardProps) {
 - Setup: hooks and selectors only
 - Early exit: guard clauses, loading/empty/error states
 - Return: semantic styled components ONLY — no raw HTML tags
+- Every semantic element in the return carries a `data-testid` — kebab-case, component-prefixed (see JSX Rules)
 - Helpers: defined below the return statement
 - No `useEffect` for hydration/API calls. DOM manipulation only when necessary.
 
@@ -219,7 +220,22 @@ grep -nE '<(button|input|a) [^>]*>' src/components | grep -v 'onClick\|onChange\
 ```
 flags candidates.
 
-## Styled Components
+### Every Semantic Element Carries a `data-testid`
+
+Every semantic styled component in the return gets a `data-testid`, written inline in JSX at the use site. Naming is kebab-case, prefixed by the component's own name: the root wrapper carries the component name itself, children append their semantic name.
+
+```typescript
+return (
+	<ProductCardWrapper data-testid="product-card">
+		<ProductName data-testid="product-card-name">{product.name}</ProductName>
+		<AddToCart data-testid="product-card-add-to-cart" onClick={() => {
+			dispatch(addToCart({ productId }))
+		}}>Add to cart</AddToCart>
+	</ProductCardWrapper>
+);
+```
+
+Why every element, not just interactive ones: testing automation asserts the *visibility* of display elements ("is the price shown once loading finishes?") as much as it needs stable handles to poke controls — and the cost is one attribute per element. The ids live inline in the JSX so they're visible exactly where the element is used, and the same styled component can carry different ids at different use sites. Because ids derive deterministically from names that already exist, a test can predict them without a registry.
 
 Class-based styling, avoid prop-based. Runtime state (e.g., `disabled`, `active`, `selected`) goes on `className`; the styled component reads pure CSS that branches on that class.
 
@@ -337,6 +353,7 @@ const branches = { b1: { result: "Return to Customer", reason: "working, no faul
 - [ ] types.ts derived from store types
 - [ ] index.ts with single re-export
 - [ ] Return reads as content document (no implementation primitives)
+- [ ] Every semantic element has a `data-testid` (kebab-case, component-prefixed)
 - [ ] No raw HTML, no ternaries, no inline cn() in return
 - [ ] Styled components use classes, not props
 - [ ] No useEffect for data loading

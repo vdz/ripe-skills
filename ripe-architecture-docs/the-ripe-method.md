@@ -411,6 +411,12 @@ Action → Listener → New Action
 
 That's it. There is no Flow 3. If you find yourself inventing a third path, you're doing it wrong.
 
+Why the prohibition is absolute: any state change that doesn't travel through an action is invisible to Redux devtools, time-travel, and the test harness — traceability is all-or-nothing. One untracked channel, and "the action log tells the whole story" stops being true for the entire app.
+
+That's also the test for patterns you haven't seen ruled on: component→component calls, refs used as data channels, event emitters, context-as-state, a util writing to the store directly — each is a Flow 3, because state moves without an action describing it.
+
+> **Naming note:** "Two Flows" is about *data-flow channels*. The flow engine's user-journey flows (see the `building-ripe-flows` skill) are a different concept entirely — application features that ride *on top of* these two channels, in unlimited number.
+
 ### The Application Information Cycle
 
 Here's the complete picture of how data moves through a Ripe app:

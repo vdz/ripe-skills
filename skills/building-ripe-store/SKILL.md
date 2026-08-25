@@ -151,7 +151,7 @@ Store Branch Progress:
 - [ ] Create __tests__/[feature].reducer.test.ts + [feature].listener.test.ts — see `building-ripe-tests`
 - [ ] Register reducer in store.ts configureStore
 - [ ] Register listener array in listener.ts initAppListeners
-- [ ] Verify: reducer has no if statements or API calls
+- [ ] Verify: reducer `if`s guard data invariants only (e.g. member exists before delete/update) — no business decisions, no API calls
 - [ ] Verify: payloads arrive pre-formatted (match state shape)
 - [ ] Verify: listeners handle all error cases
 - [ ] Verify: no useEffect in components fetching this branch's data
