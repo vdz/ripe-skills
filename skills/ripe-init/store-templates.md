@@ -65,8 +65,9 @@ sufficient because it is all `registerListener` reads — and it is what RTK rea
 
 ## src/store/listener.ts
 
-Creates the listener middleware and registers every branch's listeners. `listenerGroups`
-starts empty — each new branch appends its array, which is how a branch becomes live.
+Creates the listener middleware and registers every branch's listeners via `initAppListeners()`
+— the registration pass `building-ripe-store` refers to. `listenerGroups` starts empty — each
+new branch appends its array, which is how a branch becomes live.
 
 ```typescript
 import { createListenerMiddleware } from '@reduxjs/toolkit';
@@ -110,8 +111,16 @@ function registerListener(listener: Listener): void {
 // listener array appears here AND its reducer appears in store.ts.
 const listenerGroups: Listener[][] = [];
 
-listenerGroups.forEach((group) => group.forEach(registerListener));
+export function initAppListeners(): void {
+  listenerGroups.forEach((group) => group.forEach(registerListener));
+}
+
+initAppListeners();
 ```
+
+`initAppListeners()` runs at module load — `store.ts` importing `listenerMiddleware` evaluates
+this file, so every group is registered before the store is configured. No other file needs to
+call it.
 
 `registerListener` is not boilerplate you can flatten away. RTK's `startListening` accepts
 `actionCreator` **or** `matcher`, never an array of action creators — so the array form documented
