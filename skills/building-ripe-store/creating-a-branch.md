@@ -7,13 +7,14 @@
 
 ## What's covered
 - The 8 steps from empty folder to working branch
-- File-by-file templates for `types.ts`, `actions.ts`, `reducer.ts`, `api/`, `listener.ts`, tests
+- File-by-file templates for `types.ts`, `actions.ts`, `reducer.ts`, `api/`, `listener.ts`
 - How to register the new branch in the root `store.ts` and `listener.ts`
 
 For deeper coverage of any step:
 - State design → [state-shape.md](state-shape.md)
 - Action naming and payload rules → [action-payloads.md](action-payloads.md)
 - Listener patterns (single, matcher, debounce, error handling, preemptive hydration) → [listeners.md](listeners.md)
+- Which tests the branch needs → [testing.md](testing.md)
 
 ---
 
@@ -43,7 +44,7 @@ What "decide the state composition" means:
 4. `<feature>.reducer.ts` — default state + assignment cases
 5. `api/<verb><Feature>.ts` — fetch + format response (one file per verb)
 6. `<feature>.listener.ts` — `Listener[]` with business logic + error handling
-7. `__tests__/<feature>.reducer.test.ts` — test state transitions
+7. `__tests__/` — branch tests, reducer test at minimum (see [testing.md](testing.md))
 8. Register in root `store.ts` (reducer) and `listener.ts` (listener)
 
 ---
@@ -247,60 +248,9 @@ For data the page needs at render time, prefer **preemptive hydration via `setLo
 
 ---
 
-## Step 7: `__tests__/<feature>.reducer.test.ts`
+## Step 7: `__tests__/` — Tests
 
-Test state transitions one action at a time. Reducers are pure functions — testing them is easy and high-value.
-
-```typescript
-// store/products/__tests__/products.reducer.test.ts
-import { describe, it, expect } from 'vitest';
-import { LOADING_STATES } from '@/store/types';
-import { productsReducer } from '../products.reducer';
-import {
-	fetchProducts,
-	fetchProductsSuccess,
-	fetchProductsFailure,
-} from '../products.actions';
-
-describe('productsReducer', () => {
-	it('starts idle with empty collections', () => {
-		const state = productsReducer(undefined, { type: '@@INIT' });
-		expect(state.status).toBe(LOADING_STATES.idle);
-		expect(state.items).toEqual([]);
-		expect(state.byId).toEqual({});
-	});
-
-	it('moves to loading on fetchProducts', () => {
-		const state = productsReducer(undefined, fetchProducts());
-		expect(state.status).toBe(LOADING_STATES.loading);
-	});
-
-	it('populates items and byId on fetchProductsSuccess', () => {
-		const state = productsReducer(
-			undefined,
-			fetchProductsSuccess({
-				items: ['p1'],
-				byId: {
-					p1: {
-						id: 'p1',
-						name: 'Widget',
-						price: 10,
-						imageUrl: '',
-					},
-				},
-			})
-		);
-		expect(state.status).toBe(LOADING_STATES.loaded);
-		expect(state.items).toEqual(['p1']);
-		expect(state.byId.p1.name).toBe('Widget');
-	});
-
-	it('moves to error on fetchProductsFailure', () => {
-		const state = productsReducer(undefined, fetchProductsFailure({ error: 'oops' }));
-		expect(state.status).toBe(LOADING_STATES.error);
-	});
-});
-```
+Which test files the new branch ships with and what they must cover: [testing.md](testing.md). How to write each kind of test: the `building-ripe-tests` skill.
 
 ---
 
