@@ -1,5 +1,11 @@
 # Component Patterns Reference
 
+## When to read this
+- Writing a component's render logic — loading guards, early exits, conditional blocks
+- Rendering a collection from the store (`items` / `byId`)
+- Wiring event handlers that dispatch
+- Reviewing a component for common Ripe mistakes (`useState`, fetching on mount, logic in components)
+
 ## Contents
 - Early exit patterns
 - Conditional rendering

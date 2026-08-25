@@ -1,5 +1,11 @@
 # Styled Components Reference
 
+## When to read this
+- Creating or extending a `.styled.tsx` file
+- Naming styled components (semantic `[Component][Role]` names)
+- Theming with CSS variables, or adding size/intent/state variants
+- A styled file has grown large and needs organising
+
 ## Contents
 - File structure and imports
 - Naming conventions
