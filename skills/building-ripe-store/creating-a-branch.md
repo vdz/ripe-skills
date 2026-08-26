@@ -32,6 +32,8 @@ What "decide the state composition" means:
 
 **Process:** present the proposed composition to the project owner in writing — a short markdown plan, an HTML mockup, or a verbal walkthrough. Get explicit approval. Only then start the file-by-file work in Steps 1–8 below.
 
+If a spec or interview workflow preceded this task, Step 0 is a *read* of those decisions, not a second interview — a spec is a record of decisions already made. If nothing preceded it, Step 0 IS the interview.
+
 **The `app` branch — for cross-cutting state.** If the answer to "which branch?" is "this doesn't fit any domain entity", the cross-cutting bucket is `app` — state with a session lifecycle that's orthogonal to every domain branch: online status, locale, theme, clipboard intents, session boot status, app-init readiness. Don't put cross-cutting state in `ui` (that's transient view state) or wedge it into a domain branch (wrong owner).
 
 ---

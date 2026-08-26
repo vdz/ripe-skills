@@ -70,6 +70,7 @@ Work through these in order. Mark each as done before moving to the next.
 
 ### Context & Progress
 - [ ] `CLAUDE.md` — see claude-md-template.md
+- [ ] `CONTEXT.md` — glossary-only stub: a `# PROJECT_NAME — Context` heading + `## Glossary` with an empty `| Term | Meaning |` table. Terms get added as they're decided — glossary and nothing else.
 - [ ] `PROGRESS.md` — initial task board (empty table, 5-7 slots)
 - [ ] `TASK-ARCHIVE.md` — initial archive (header only)
 
@@ -88,9 +89,4 @@ Scaffold complete. To start:
 
 ## Next Steps
 
-To add a feature branch + component, use these skills in order:
-- `building-ripe-store` — scaffold a new store branch
-- `building-ripe-components` — scaffold the matching component
-
-To configure routing for new pages:
-- `building-ripe-routing` — add routes and preemptive hydration
+To add a feature end-to-end, follow `building-ripe-store` → **The Feature Loop** — it orders the whole vertical slice (state → actions → listeners → routes → components → selectors → tests → verification) and links each step to its skill.

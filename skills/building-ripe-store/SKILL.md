@@ -32,6 +32,25 @@ Components don't `dispatch(fetchX())` on mount. Listeners react to navigation, a
 **6. Derived selectors are memoised — but not every prop needs a named selector.**
 Any *named* selector that returns a new array, object, or computed structure on every call must be wrapped with `createSelector` from `@reduxjs/toolkit` (already bundled). Plain function selectors are right for direct slice reads, lookups by id, and primitive returns — they're naturally reference-stable. Components don't need a named selector for every prop read; inline `useAppSelector((s) => s.x.y)` is fine for one-off direct reads. Named selectors earn their place when they're branch-level useful, derived/computed, or carry semantic meaning. See [state-shape.md](state-shape.md#selectors-and-memoisation).
 
+## The Feature Loop
+
+A full Ripe feature is one vertical slice, built in this order. If a spec or interview workflow preceded the task, the loop consumes its decisions — it does not re-open them (see [creating-a-branch.md → Step 0](creating-a-branch.md#step-0-state-composition-is-a-human-decision)).
+
+1. **State first** — understand the state-structure changes; where needed, add a branch: state type, `defaultState`, reducer shell → [state-shape.md](state-shape.md), [creating-a-branch.md](creating-a-branch.md)
+2. **Actions as vocabulary** — name the newly added functionality. Existing actions are often reused — no new actions is a normal outcome. Payloads only where data is actually carried, typed → [action-payloads.md](action-payloads.md)
+3. **Reducer cases** — data mapping and invariant maintenance only (Cardinal Rule 2)
+4. **Listeners** — in the branch, or elsewhere when the cross-branch rule says so; keep them thin → [listeners.md](listeners.md)
+5. **API functions** — new or updated, in the branch's `api/` folder, one file per verb
+6. **Root wiring** — register the reducer and the listener array ("Adding a Branch to the Root" below)
+7. **Routes before components** — set up routes to the new feature's assets before the components exist → `building-ripe-routing`
+8. **Components** — as the spec/plan commands → `building-ripe-components`
+9. **Selector optimizations** — decide whether smart selectors apply; add them where they belong → [selectors.md](selectors.md)
+10. **Tests all over, per convention** → [testing.md](testing.md), `building-ripe-tests`
+
+**Verify as you go:** typecheck + the branch's own test files during the build; the full suite once near the end. Refactors the slice doesn't need belong to review, not to this loop.
+
+**Close with verification:** run the feature for real in the browser (e2e), then `ripe-audit` before merge — that's the *standards* axis. Spec fidelity is the outer workflow's job.
+
 ## Branch File Structure
 
 ```

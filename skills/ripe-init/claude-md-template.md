@@ -14,6 +14,11 @@ Generate this file at the project root. Replace `PROJECT_NAME` and fill in proje
 - **Archive:** TASK-ARCHIVE.md (in this directory)
 - **Branch:** {branch-name}
 
+## Workflow
+- **Outer loop:** {this project's spec/interview → implement → review process, if any}
+- **Task authority:** {PROGRESS.md or the issue tracker — name the one that's authoritative}
+- **Inner loop:** `building-ripe-store` → The Feature Loop
+
 ## Architecture: Ripe Method
 This project follows **The Ripe Method** — a strict separation of concerns:
 
@@ -63,6 +68,8 @@ src/
 - `building-ripe-store` — slices, actions, reducers, listeners, API functions
 - `building-ripe-components` — component anatomy, semantic TSX, two-level aliases
 - `building-ripe-routing` — React Router + setLocation bridge
+- `building-ripe-tests` — reducer/listener/selector/component tests, the test harness
+- `ripe-audit` — standards review before merge
 
 ## Build & Dev
 ```bash

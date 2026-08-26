@@ -24,6 +24,8 @@ A passing audit means a new contributor can read any file in the project and und
 - On a fresh project before opening it up to team contributions
 - When `/ripe-audit` is invoked as a slash command (with or without a scope path)
 
+The audit is the **standards** axis of a review — Ripe compliance, clean code, organisation. It does not check fidelity to the feature's spec or plan; pair it with whatever spec-review step your workflow has.
+
 ## How to run
 
 1. Read the checklists for each lens — `checklists/components.md`, `checklists/store.md`, `checklists/routing.md`, `checklists/flows.md` (only if the project has a flow engine — `src/store/flows/`), `checklists/tests.md`, `checklists/clean-code.md`, `checklists/organisation.md`.
