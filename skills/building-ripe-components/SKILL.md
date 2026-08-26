@@ -55,7 +55,7 @@ export function ProductCard({ productId }: ProductCardProps) {
 
 **Rules:**
 - Function declaration syntax — never `const Component: React.FC` or arrow functions
-- Minimal props — components select their data from the store
+- Minimal props — components select their data from the store. A child that takes an ID and selects the rest doesn't break when the entity shape changes and needs nothing pre-read by the parent — props collapse to identifiers.
 - Setup: hooks and selectors only
 - Early exit: guard clauses, loading/empty/error states
 - Return: semantic styled components ONLY — no raw HTML tags
@@ -204,7 +204,7 @@ Multi-line handlers should be extracted to SETUP.
 
 - **Tooltips:** Use native `title` attribute, not a `<Tooltip>` wrapper. A tooltip is presentation with no content or state of its own — a `<Tooltip>` component forces ephemeral open/closed state that Ripe would then have to model in the store, while native `title` is zero-JS and accessible for free. A real tooltip component is warranted only for rich content or controlled positioning, and that's a deliberate, owner-approved deviation.
 - **Visual separators:** CSS (`border-top`) on styled components, not `<Divider />` in JSX. A divider is presentation, not content — a JSX node with no semantic meaning breaks "the return reads as a content document". The border belongs on the styled component it separates.
-- **Clickable elements:** Must have `cursor: pointer` in styled definition
+- **Clickable elements:** Must have `cursor: pointer` in styled definition — an affordance guarantee: anything that dispatches on click must look clickable, the inverse of "decorative elements must not look interactive".
 
 ### Every Interactive Element Must Dispatch (or Be Inert by Tag)
 
@@ -319,7 +319,7 @@ function renderLabel() {
 
 ## Object Literal Layout
 
-Multi-property object literals get one property per line — unless the object fits trivially on a single line (1–2 short properties). This applies to inline configs, props on a styled component, and plain data objects in modules.
+A formatting rule, not an architectural constraint. Multi-property object literals get one property per line — unless the object fits trivially on a single line (1–2 short properties). This applies to inline configs, props on a styled component, and plain data objects in modules. One property per line also means one changed property per diff line, which keeps reviews clean.
 
 ```typescript
 // ✅ Single-line trivial

@@ -283,7 +283,7 @@ Describe the state first. Then write the code. Always.
 1. **Single source of truth.** No in-component state for app data.
 2. **Reflects everything** you're about to show to your user.
 3. **Optimized for quick fetching.** Arrays for order, objects for O(1) lookup.
-4. **Caching computed on mutation.** Not on read.
+4. **Caching computed on mutation.** Not on read. Compute derived projections once at write time so N renders don't each recompute — a little reducer work buys render-time predictability.
 5. **Features have their own branch.** Cart gets `cart`, user gets `user`.
 6. **Always comes with defaults.** No undefined states. Ever — a fully-defaulted tree means selectors never guard with `?.` and an empty branch renders instead of crashing.
 
@@ -685,7 +685,7 @@ The structure is always the same:
 1. **Setup** — hooks, selectors, variables
 2. **Early returns** — guard clauses for empty/loading states
 3. **Return statement** — the JSX, **as early as possible**
-4. **Helper functions** — below the return, sharing closures from setup
+4. **Helper functions** — below the return, sharing closures from setup. Below, not above: hoisted function declarations let the return come first while still closing over setup, so the reader hits *what this component is* before *how the details are computed*.
 
 ### The Return Statement: Get There Fast
 
@@ -1222,6 +1222,8 @@ type UserState = Readonly<{
 }>;
 ```
 
+`Readonly` makes accidental direct mutation a *compile error* — "reducers only, via Immer" is enforced by the type system instead of by discipline.
+
 ### Declarative Over Imperative
 
 ```typescript
@@ -1259,6 +1261,8 @@ const double = (n: number) => {
   return n * 2;
 };
 ```
+
+A style preference, not load-bearing architecture: a one-expression function reads as a definition, not a procedure.
 
 ### Function Declarations for Components
 
