@@ -22,7 +22,7 @@ A flow's state splits across two homes (ADR-0004):
 
 **R1 — engine intake.** The `flows` branch: `flows.byId[flowId] = { status, steps, currentStep, data }`, where `data` is **step-scoped intake** (`data[stepId]`), written live via `setStepData`. The engine owns intake so every decision point in the brain reads the latest context. This is where user answers and probe results live — `data.triage.mode`, `data.connectivity.signal`, `data.storage.freedGB`.
 
-A `FlowDefinition` may also seed starting intake via an optional `initialData` map (`types.ts`), applied **once** when the engine builds the flow at store-init. Mind the asymmetry: `flowStart` replay hard-clears `data` to `{}` and does **not** re-apply `initialData` — a seed survives only until the first replay, so a step must never rely on it being restored.
+A flow's declaration in `flows.reducer.ts` starts every flow with `data: {}`. There is no `initialData` seed: `flowStart` replay hard-clears `data` to `{}`, so a seed would survive only until the first replay and a step could never rely on it — a step that needs a starting value writes it on entry (the async-intake listener). `[contract-only]` Older engines carried an optional `initialData` on the definition object with exactly that asymmetry; the trade-in app dropped it with the definitions.
 
 **R2 — feature conclusions.** An *optional* feature branch, existing only for feature-specific state that is **not** step intake: derived conclusions, summaries, or state consumed outside the flow. `troubleshoot.report` — derived by `buildReport(flow.data)` on reaching `summary` — is R2. Raw intake stays in R1.
 
@@ -41,7 +41,7 @@ For any value a flow holds, ask:
 
 ## Most Flows Have No Reducer
 
-The consequence of the boundary test: **a feature earns a reducer only when it has R2 state.** `cleanup` has none — its result (`freedGB`) is R1 step data the parent reads. `troubleshoot` has a one-field reducer, only for the derived report. A plain wizard that collects answers and hands them off carries no reducer at all — just a definition + brain + pure utils + view.
+The consequence of the boundary test: **a feature earns a reducer only when it has R2 state.** `cleanup` has none — its result (`freedGB`) is R1 step data the parent reads. `troubleshoot` has a one-field reducer, only for the derived report. A plain wizard that collects answers and hands them off carries no reducer at all — just its entry in the flows reducer + a listener + pure utils + view.
 
 Before adding a reducer to a flow, confirm it has genuine R2 state. If everything it holds is step intake, delete the branch.
 
@@ -54,13 +54,13 @@ Before adding a reducer to a flow, confirm it has genuine R2 state. If everythin
 | | Shape | Proven in | Reach for it when |
 |---|---|---|---|
 | **A** | **Owned domain branch + one-way projection out.** The feature owns a reducer (the atom is the source of truth) and MIRRORS a generic summary into `flows.data` for foreign listeners — never reading it back. | DTL `diagnostics` (`TestAtom`) — projection at `mce-dtl/src/lib/feature/diagnostics.listener.ts:69-80` | The feature has genuine domain state with an in-step lifecycle (running → done → retried) that other features only *observe*. |
-| **B** | **No branch at all — verdicts live in the engine's data bag.** Decision logic is pure modules + a brain; each step's verdict is written into `flows.data[step]` via `setStepData` and read back with `selectStepData`. | VFUK `eligibility` — verdict shape at `mce .../store/eligibility/eligibility.intake.ts:68-87` | The extension is *decision logic*, and everything it produces is genuinely step-scoped. The default: no new branch to justify. |
-| **C** | **Owned domain branch that also *reads* the flow's intake.** The feature owns its branch (device dimensions, a pricing pipeline) and pulls the flow's verdict table through the engine's public selectors to do its job. | VFUK `tradein` — `selectFlow(state, flowId)` feeding `buildFinalOfferInput({ flow })` at `mce .../store/tradein/tradein.brain.ts:113-118` | The feature owns state of its own **and** needs the flow's intake as input (pricing needs the verdicts). The read goes through public selectors — that is what keeps it legal. |
+| **B** | **No branch at all — verdicts live in the engine's data bag.** Decision logic is pure utils + a listener; each step's verdict is written into `flows.data[step]` via `setStepData` and read back with `selectStepData`. | VFUK `eligibility` — verdict shape at `mce .../store/eligibility/eligibility.intake.ts:68-87` | The extension is *decision logic*, and everything it produces is genuinely step-scoped. The default: no new branch to justify. |
+| **C** | **Owned domain branch that also *reads* the flow's intake.** The feature owns its branch (device dimensions, a pricing pipeline) and pulls the flow's verdict table through the engine's public selectors to do its job. | MCE trade-in `diagnostics` — `{ checks: Record<CheckId, CheckState> }`, every check present from the first render, no ordering of its own; it learns which check a step is through `isInteractiveCheck(step)`, the one bridge from the flow, and mirrors nothing back into `flows.data`. `tradein` is a second C beside it: `tradein.listener.ts` reads the verdicts through `selectVerdictOf` to price | The feature owns state of its own **and** needs the flow's intake as input (pricing needs the verdicts). The read goes through public selectors — that is what keeps it legal. |
 
 Notes that keep the shapes honest:
 
 - **"One-way" is a property of shape A's projection, not a universal law.** A's mirror must never be read back by its producer (drift). C reads flow data *by design* — through the engine's public selectors, which is exactly what the coupling rule permits. Don't cargo-cult "never read flow data" onto shape C.
-- **The shapes compose in one app.** VFUK runs B (eligibility verdicts in the bag) and C (tradein pulling them) side by side; DTL runs A. Pick per feature, not per project.
+- **The shapes compose in one app.** VFUK runs B (eligibility verdicts in the bag) and C (tradein pulling them) side by side; DTL runs A; MCE trade-in runs C twice (diagnostics, tradein) and B for nothing — its flow's data bag holds only journey drafts. Pick per feature, not per project.
 - **B is the default.** A and C must justify their branch through the [simplicity gate](#the-simplicity-gate) below.
 
 ## The R2 Amendment — an Owned Domain Reducer `[contract-only]`
@@ -85,7 +85,7 @@ interface TestAtom {
 const VERDICT_STATUS: Record<Verdict, TestStatus> = { /* every verdict → its status */ };
 ```
 
-The atom carries live running state, a payload envelope, and a retry ceiling — none of which is generic step intake, so it earns a reducer at the feature's altitude. **Plain step intake still never earns a reducer.** The atom is the source of truth; `flows.data` holds only a non-authoritative mirror (see projection).
+The atom carries live running state, a payload envelope, and a retry ceiling — none of which is generic step intake, so it earns a reducer at the feature's altitude. The MCE trade-in app's `diagnostics` branch is this shape declared plainly: `checks: Record<CheckId, CheckState>` with `status`, `verdict`, `payload`, `attempt`, `progress`, `clock` per check, keyed by the app's own check ids, with `isInteractiveCheck(stepId)` as the one bridge from a flow step to a check. **Plain step intake still never earns a reducer.** The atom is the source of truth; `flows.data` holds only a non-authoritative mirror (see projection).
 
 Two tells that a flow has crossed into R2-amendment territory:
 - It has state with a lifecycle *inside* a step (a test that is running, then done, then retried) — not just an answer.

@@ -28,13 +28,13 @@ Renovation is still *building a flow* — everything in [creating-a-flow.md](cre
 ## The Stage-1 Loop
 
 1. **Reverse-engineer the legacy flow into a human-readable behaviour map.** Steps in order, every gate/skip/fail rule, per-OS or per-dimension variations, the terminal outcomes. This is [Step 0](creating-a-flow.md#step-0-the-journey-is-a-human-decision), recovered from code instead of designed.
-2. **Transcribe every config rule into code** — the step list into a `FlowDefinition`, the gating/branching/fail-semantics into the brain + pure `modules/*.rules.ts`. VFUK's `eligibility.rules.ts` opens with "transcribed VERBATIM from the prod `flows/eligibility` config" — that's the standard.
+2. **Transcribe every config rule into code** — the step list into the flow's literal entry in `flows.reducer.ts`, the gating/branching/fail-semantics into the listener + pure `lib/utils/<feature>/*.ts`. VFUK's `eligibility.rules.ts` (`[contract-only]`, older `modules/` layout) opens with "transcribed VERBATIM from the prod `flows/eligibility` config" — that's the standard.
 3. **Reproduce quirks on purpose** (section below). A future reader must not "fix" them in Stage 1 — leave a comment citing the parity requirement.
 4. **Verify behaviour parity** step-by-step against the legacy app, then keep a decision trail (see the `show-me-your-work` skill) so a reviewer can trust the reproduction.
 
 ## Per-Dimension Step Resolution at `flowStart`
 
-Legacy config services overlay steps per device dimension (OS, model). In code: hold the **union** of variant steps in the definition and drop the wrong variant when the flow starts.
+Legacy config services overlay steps per device dimension (OS, model). In code: hold the **union** of variant steps in the flow's declared `steps` and drop the wrong variant when the flow starts.
 
 ```typescript
 // [contract-only] mce eligibility.definition.ts:49-52 — union in the definition, resolved at start
@@ -44,7 +44,7 @@ export function resolveEligibilitySteps(deviceOs: DeviceOs): string[] {
 }
 ```
 
-The definition carries both account-lock twins (`FmipQuestion` / `FrpQuestion`); resolution drops one, yielding the legacy 12-step run list. Both start paths (the boot pipeline and the route-mount backup) resolve identically — a divergence there is a parity bug. This requires a `flowStart` that accepts a resolved `steps` payload — VFUK's engine does (`flows.reducer.ts:35`); canonical `ripe-flows` doesn't yet, so a project renovating on canonical adds that first.
+The declared list carries both account-lock twins (`FmipQuestion` / `FrpQuestion`); resolution drops one, yielding the legacy 12-step run list. Both start paths (the boot pipeline and the route-mount backup) resolve identically — a divergence there is a parity bug. This requires a `flowStart` that accepts a resolved `steps` payload — VFUK's engine does (`flows.reducer.ts:35`); canonical `ripe-flows` doesn't yet, so a project renovating on canonical adds that first.
 
 ## The Skip-Predicate Inversion — Absorb It Exactly Once
 
@@ -94,8 +94,8 @@ Renovated steps often front real probes (battery stats, OTAC, IMEI checks). Two 
 ## Quick Verification
 
 - [ ] The behaviour map exists in writing and the owner signed off on it
-- [ ] Every legacy rule is transcribed into a pure `modules/*.rules.ts` function; the app fetches no flow document
-- [ ] The definition holds the union of variant steps; one resolver drops variants at `flowStart`, used by *every* start path
+- [ ] Every legacy rule is transcribed into a pure `lib/utils/<feature>/` function; the app fetches no flow document
+- [ ] The flow's declared `steps` hold the union of variant steps; one resolver drops variants at `flowStart`, used by *every* start path
 - [ ] The skip-when-true inversion is absorbed exactly once
 - [ ] User-skip and gate-skip produce distinct verdict shapes with the intended pricing/outcome fold
 - [ ] Every reproduced quirk carries a comment citing the parity requirement

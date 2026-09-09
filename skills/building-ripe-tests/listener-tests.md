@@ -25,7 +25,7 @@ Every listener test follows the same shape:
 ```typescript
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { makeTestHarness, actionTypes, loc, type TestHarness } from '@/test-utils';
+import { makeTestHarness, actionTypes, type TestHarness } from '@/store/__tests__/makeTestHarness';
 import type { Listener } from '@/store/types';
 import { setLocation } from '@/store/router/router.actions';
 
@@ -44,7 +44,7 @@ describe('auth.listener', () => {
 		const listener = await loadAuthListener();   // dynamic import after resetModules
 		const harness: TestHarness = makeTestHarness(listener);
 
-		harness.store.dispatch(setLocation({ location: loc('/') }));
+		harness.store.dispatch(setLocation({ pathname: '/' }));
 
 		await vi.waitFor(() => {
 			expect(actionTypes(harness)).toContain('auth/setUserInfo');
@@ -109,36 +109,46 @@ Always restore real timers at the end (or in `afterEach`). Forgetting leaks to t
 
 ## Service-Module Stubbing
 
-Ripe mocks at the service-module boundary — `window.mce`, `localStorage`, third-party SDKs. The pattern:
+Ripe mocks at the service-module boundary — `window.mce`, `localStorage`, `navigator.mediaDevices`, third-party SDKs. Two shapes, and neither casts:
+
+**A typed factory for a platform object.** The shell double is built as the declared `Window['mce']`, with every member present, so `window.mce = shell` typechecks (full source in [SKILL.md → Typed Test Doubles](SKILL.md#typed-test-doubles)):
 
 ```typescript
-function stubMce(getUserInfoImpl: () => Promise<UserInfo>) {
-	(globalThis.window as any).mce = {
-		jarvis: { api: { auth: { getUserInfo: () => ({ promise: getUserInfoImpl }) } } },
-	};
-}
+import { installFakeMce, uninstallFakeMce } from '@/store/__tests__/fakeMce.test-utils';
 
-function clearMce() {
-	delete (globalThis.window as any).mce;
-}
-
-describe('auth.listener', () => {
+describe('session.listener', () => {
 	beforeEach(() => { vi.resetModules(); });
-	afterEach(() => { clearMce(); });
+	afterEach(() => { uninstallFakeMce(); });
 
 	it('handles success', async () => {
-		stubMce(() => Promise.resolve(validUser));
+		installFakeMce({ auth: { token: 'jwt-123', expiry: inAnHour } });
 		// ... test
 	});
 
-	it('handles missing service', async () => {
-		clearMce();
+	it('handles a missing shell', async () => {
+		uninstallFakeMce();
 		// ... test
 	});
 });
 ```
 
-Pre-test `stubMce(...)`. Post-test `clearMce()`. **No test-wide singleton stub** — each test sets up its own scenario so failures don't cascade.
+**`vi.mock` of the branch's `api/` module** when the listener's I/O is behind `store/<branch>/api/` (which it should be — see [building-ripe-store → api.md](../building-ripe-store/api.md)). Hoist the mocks so the factory can see them:
+
+```typescript
+const readMocks = vi.hoisted(() => ({ battery: vi.fn(), probe: vi.fn() }));
+
+vi.mock('../api/backgroundChecks', () => ({ readBatteryHealth: readMocks.battery }));
+vi.mock('../api/permissions', () => ({ probePermission: readMocks.probe }));
+
+beforeEach(() => {
+	readMocks.battery.mockReset().mockResolvedValue({ verdict: 'pass', payload: { healthPct: 90 } });
+	readMocks.probe.mockReset().mockResolvedValue('granted');
+});
+```
+
+To simulate an absent browser API, remove it without a cast: `Reflect.deleteProperty(navigator, 'mediaDevices')`.
+
+Pre-test install. Post-test uninstall. **No test-wide singleton stub** — each test sets up its own scenario so failures don't cascade. `(globalThis.window as any).mce = { … }` is a finding: the partial object stops matching the shell's type silently.
 
 For `localStorage`, jsdom provides a working one — write to it directly in the test setup:
 
@@ -179,7 +189,7 @@ it('navigates to /summary after submitOrderSuccess', async () => {
 When the contract is "this action should NOT fire" (e.g., guard prevented it), wait for any settling, then assert:
 
 ```typescript
-harness.store.dispatch(setLocation({ location: loc('/somewhere') }));
+harness.store.dispatch(setLocation({ pathname: '/somewhere' }));
 
 // Give async listeners a tick to settle
 await vi.waitFor(() => true, { timeout: 50 });
@@ -207,11 +217,11 @@ it('only fires on the first setLocation, not subsequent ones', async () => {
 	const listener = await loadAuthListener();
 	const harness = makeTestHarness(listener);
 
-	harness.store.dispatch(setLocation({ location: loc('/') }));
+	harness.store.dispatch(setLocation({ pathname: '/' }));
 	await vi.waitFor(() => expect(actionTypes(harness)).toContain('auth/setUserInfo'));
 
-	harness.store.dispatch(setLocation({ location: loc('/demos') }));
-	harness.store.dispatch(setLocation({ location: loc('/settings') }));
+	harness.store.dispatch(setLocation({ pathname: '/demos' }));
+	harness.store.dispatch(setLocation({ pathname: '/settings' }));
 	await vi.waitFor(() => true, { timeout: 50 });
 
 	const userInfoActions = actionTypes(harness).filter((t) => t === 'auth/setUserInfo');
@@ -256,7 +266,7 @@ import { extractToken } from '../auth.listener';
 expect(extractToken('Bearer abc')).toBe('abc');
 
 // ✅ Right — dispatch the action that exercises the helper, observe state
-harness.store.dispatch(setLocation({ location: loc('/') }));
+harness.store.dispatch(setLocation({ pathname: '/' }));
 await vi.waitFor(() => expect(harness.store.getState().auth.token).toBe('abc'));
 ```
 
@@ -286,5 +296,13 @@ Real files in `mce-blueprint`:
   under `vi.waitFor`) rather than on the dispatched action list. Also shows nested `describe` blocks
   per intent, and the "no-op when the target doesn't exist" case that proves the guard lives in the
   reducer, not the listener.
-- `src/test-utils.ts` — the harness itself: `makeTestHarness(listeners)` and `loc(pathname, search, hash)`.
+
+Real files in the MCE trade-in app (`mce`, `src/clients/mce/tradein`):
+- `src/store/__tests__/makeTestHarness.ts` — the harness itself, over the app's reducer map, with `preloadedState`.
   Read this first; every listener test is a variation on it.
+- `src/store/diagnostics/__tests__/diagnostics.listener.test.ts` — `vi.hoisted` mocks of the branch's `api/`
+  modules, a `settle()` drain, and one check walked idle → running → concluded → retried.
+- `src/store/assessment/__tests__/assessment.sharedTimeout.test.ts` — the watchdog over unclocked time under
+  fake timers: arm, stand down while the check's own clock runs, re-arm when it pauses.
+- `src/store/tradein/__tests__/tradein.listener.copy.test.ts` — a confirm window: the copy action, the
+  confirmed state, and its own clearing after `COPY_CONFIRM_MS`.

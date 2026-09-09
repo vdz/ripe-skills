@@ -13,7 +13,7 @@ It must be here from the start: the first branch you add imports it, and
 `building-ripe-store` tells you to.
 
 ```typescript
-import type { ListenerEffectAPI, AnyAction } from '@reduxjs/toolkit';
+import type { ListenerEffectAPI, UnknownAction } from '@reduxjs/toolkit';
 import type { RootState, AppDispatch } from './store';
 
 export const LOADING_STATES = {
@@ -25,165 +25,223 @@ export const LOADING_STATES = {
 
 export type LoadingState = typeof LOADING_STATES[keyof typeof LOADING_STATES];
 
-export interface BranchActionCreator {
-  type: string;
-  match: (action: unknown) => boolean;
+/**
+ * Any RTK action creator, whatever its payload shape.
+ *
+ * `any[]` is deliberate: creators have arbitrary parameter shapes (no-payload,
+ * single payload, multi-arg). `unknown[]` would break contravariance — a typed
+ * creator like `ActionCreatorWithPayload<P>` would not be assignable, because
+ * the parameter must accept the narrower `P`, not just `unknown`.
+ *
+ * `match` is a type predicate, as every RTK creator's is: that is what lets the
+ * registry hand the creator to `startListening` without a cast.
+ */
+type AnyActionCreator = { type: string; match: (action: unknown) => action is UnknownAction } & ((
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ...args: any[]
+) => UnknownAction);
+
+/** The side effect a listener runs. Receives the matched action and the
+ *  listener API (dispatch, getState, delay, cancelActiveListeners…), typed to
+ *  this app's store so no effect has to widen or narrow what it is handed. */
+export type ListenerEffect = (
+  action: UnknownAction,
+  listenerApi: ListenerEffectAPI<RootState, AppDispatch>,
+) => void | Promise<void>;
+
+/** A listener that fires on one action creator. */
+export interface ActionListener {
+  /** Fire the effect when this action is dispatched. To match several actions,
+   *  use a `MatcherListener` with `isAnyOf(a, b, …)`. */
+  actionCreator: AnyActionCreator;
+  /** The side effect to run. May be async. */
+  effect: ListenerEffect;
 }
 
-export interface Listener {
-  actionCreator?: BranchActionCreator | BranchActionCreator[];
-  matcher?: (action: AnyAction) => boolean;
-  effect: (
-    action: AnyAction,
-    listenerApi: ListenerEffectAPI<RootState, AppDispatch>,
-  ) => void | Promise<void>;
+/** A listener that fires when a predicate matches the action. */
+export interface MatcherListener {
+  /** Fire when this predicate matches (e.g. `isAnyOf(actionA, actionB)`). A type
+   *  predicate, like `isAnyOf` and every creator's `match`, so RTK's matcher
+   *  overload accepts it as is. */
+  matcher: (action: unknown) => action is UnknownAction;
+  /** The side effect to run. May be async. */
+  effect: ListenerEffect;
 }
+
+/** Per-branch listener entry: exactly one trigger, an action creator or a
+ *  matcher. A union rather than two optional fields, so an entry with neither
+ *  trigger (or both) is a type error and the registry can hand each shape to
+ *  RTK's matching `startListening` overload without a cast. */
+export type Listener = ActionListener | MatcherListener;
 ```
 
-Two things to keep as-is:
+Three things to keep as-is:
 
 The `RootState`/`AppDispatch` import from `./store` is type-only, so the apparent cycle with
 `store.ts` is erased at compile time.
 
-`actionCreator` is typed **structurally** (`{ type, match }`) rather than as a union of RTK's
-`ActionCreatorWithPayload<…>` / `ActionCreatorWithoutPayload<…>`. That is deliberate and
-load-bearing: under `strict`, **no** concrete type argument to `ActionCreatorWithPayload<T>`
-accepts every action creator. Measured against RTK 2.12 / tsc 5.9:
+`Listener` is a **discriminated union**, not an interface with two optional fields. The optional
+form needs runtime `throw`s for "neither" and "both" and a cast to reach RTK's overloads; the union
+makes both cases compile errors and lets `registerListener` narrow with `'actionCreator' in entry`.
+There is no array form — `actionCreator: [a, b]` — because RTK has none; several triggers are a
+`matcher: isAnyOf(a, b)`.
 
-| Annotation | no-payload creator | with-payload creator | why |
-|---|---|---|---|
-| `<unknown>` | rejected | rejected | call-signature parameters are contravariant: `unknown` is not assignable to `void`, nor to `{ … }` |
-| `<never>` | rejected | rejected | `match` is a type predicate, so its `payload` sits in a covariant position and nothing is assignable to `never` |
-| `<any>` | accepted | accepted | only compiles by disabling `@typescript-eslint/no-explicit-any` |
-
-So the union form leaves you a choice between a type that rejects real code and an `any` that needs
-a lint suppression. The structural shape accepts all forms with neither. `{ type, match }` is
-sufficient because it is all `registerListener` reads — and it is what RTK reads too: at runtime
-`startListening` does `predicate = actionCreator.match`.
+The effect receives `UnknownAction`, so an effect that reads a payload narrows first with the
+creator's own `.match` (`if (!flowNext.match(action)) return;`) — never `action.payload as …`.
+`AnyActionCreator` carries the one `any` in the store, with its reason in the comment; the
+alternative is a `{ type, match }` structural shape whose `match` is not a type predicate, which
+then needs a cast at registration.
 
 ---
 
 ## src/store/listener.ts
 
-Creates the listener middleware and registers every branch's listeners via `initAppListeners()`
-— the registration pass `building-ripe-store` refers to. `listenerGroups` starts empty — each
+Registers every branch's listeners on a fresh listener middleware via `initAppListeners()`
+— the registration pass `building-ripe-store` refers to. `listeners` starts empty — each
 new branch appends its array, which is how a branch becomes live.
 
 ```typescript
 import { createListenerMiddleware } from '@reduxjs/toolkit';
-import type { UnknownAction } from '@reduxjs/toolkit';
+import type { TypedStartListening } from '@reduxjs/toolkit';
+import type { RootState, AppDispatch } from './store';
 import type { Listener } from './types';
-
-export const listenerMiddleware = createListenerMiddleware();
-
-type BranchTypeCarrier = { type: string };
-
-function matcherForTypes(actionCreators: BranchTypeCarrier[]): (action: UnknownAction) => boolean {
-  const types = new Set(actionCreators.map((ac) => ac.type));
-  return (action) => types.has(action.type);
-}
-
-function registerListener(listener: Listener): void {
-  const { actionCreator, matcher, effect } = listener;
-  type StartListeningArg = Parameters<typeof listenerMiddleware.startListening>[0];
-
-  // Both would mean two different trigger conditions for one effect; `matcher` would win and
-  // the actionCreator would be dropped. Fail loudly instead of registering half of what's written.
-  if (matcher && actionCreator) {
-    throw new Error('Listener sets both `matcher` and `actionCreator` — use exactly one.');
-  }
-
-  const options = matcher
-    ? { matcher, effect }
-    : Array.isArray(actionCreator)
-      ? { matcher: matcherForTypes(actionCreator), effect }
-      : actionCreator
-        ? { actionCreator, effect }
-        : null;
-
-  if (!options) {
-    throw new Error('Listener has neither `matcher` nor `actionCreator` — nothing would trigger it.');
-  }
-  listenerMiddleware.startListening(options as unknown as StartListeningArg);
-}
 
 // One array per store branch that owns listeners. A branch is not live until its
 // listener array appears here AND its reducer appears in store.ts.
-const listenerGroups: Listener[][] = [];
+// Order matters once: when listener A must run before listener B on the same action, say why here.
+const listeners: Listener[][] = [];
 
-export function initAppListeners(): void {
-  listenerGroups.forEach((group) => group.forEach(registerListener));
+/** `startListening` bound to this app's state and dispatch. */
+export type AppStartListening = TypedStartListening<RootState, AppDispatch>;
+
+/** Register one entry. RTK's `startListening` is overloaded per trigger shape
+ *  (`actionCreator` or `matcher`), so the union is narrowed here and each shape
+ *  goes to its own overload — typed end to end, no cast. Shared with the test
+ *  harness so a test registers a listener exactly the way the app does. */
+export function registerListener(startListening: AppStartListening, entry: Listener): void {
+  if ('actionCreator' in entry) {
+    startListening({ actionCreator: entry.actionCreator, effect: entry.effect });
+  } else {
+    startListening({ matcher: entry.matcher, effect: entry.effect });
+  }
 }
 
-initAppListeners();
+/** Registers every branch's `Listener[]` with a fresh RTK listener middleware
+ *  and returns it for `configureStore`. Fresh per call, so each store built by
+ *  `makeStore` gets its own registrations rather than a shared, growing set. */
+export function initAppListeners() {
+  const listenerMiddleware = createListenerMiddleware();
+  const startAppListening = listenerMiddleware.startListening.withTypes<RootState, AppDispatch>();
+
+  for (const group of listeners) {
+    for (const entry of group) {
+      registerListener(startAppListening, entry);
+    }
+  }
+  return listenerMiddleware;
+}
 ```
 
-`initAppListeners()` runs at module load — `store.ts` importing `listenerMiddleware` evaluates
-this file, so every group is registered before the store is configured. No other file needs to
-call it.
+`initAppListeners()` is called by `makeStore` (below), not at module load: the middleware is
+created per store, so a second store (a test, a hot reload) does not inherit the first store's
+registrations. Nothing else calls it.
 
-`registerListener` is not boilerplate you can flatten away. RTK's `startListening` accepts
-`actionCreator` **or** `matcher`, never an array of action creators — so the array form documented
-in [building-ripe-store/listeners.md](../building-ripe-store/listeners.md) has to be converted to
-a type-set matcher here.
-
-Registering with a naive `listenerGroups.flat().forEach((l) => startListening(l as never))`
-type-checks (the cast hides it) and then never fires for any array-form listener. It doesn't crash
-either: RTK catches the failure and emits a `listenerMiddleware/error` on **every dispatch**
-(`TypeError: entry.predicate is not a function`). So the symptom is a console full of errors and a
-feature that quietly does nothing — cheap to miss, expensive to diagnose.
-
-Both `throw`s above are deliberate. A listener that can never trigger is always a bug, and a
-startup crash naming the problem beats a feature that silently doesn't work.
-
-`src/test-utils.ts` needs the same bridge, because `makeTestHarness` registers listeners the same
-way — a test that passes against a different registration path is not testing production. Working
-reference for both halves: `mce-blueprint/src/store/listener.ts` and
-`mce-blueprint/src/test-utils.ts`, kept as deliberate hand-synced twins.
+`registerListener` is not boilerplate you can flatten away. RTK's `startListening` is overloaded
+per trigger shape, and a naive `listeners.flat().forEach((l) => startListening(l as never))`
+type-checks only because the cast hides the mismatch. The `in` narrowing hands each union member to
+its own overload with no cast, and the same function is what `makeTestHarness` calls — a test that
+passes against a different registration path is not testing production. Working reference for both
+halves: the MCE trade-in app's `src/store/listener.ts` and `src/store/__tests__/makeTestHarness.ts`
+(`mce`, `src/clients/mce/tradein`).
 
 ---
 
 ## src/store/store.ts
 
-Configures the store. Imports all branch reducers directly. Exports typed `RootState` and `AppDispatch`.
+Configures the store. Imports all branch reducers directly into one **reducer map**, exported for
+the test harness. `makeStore` is a factory so the boot can hand in a saved snapshot as
+`preloadedState` — every branch the snapshot lacks starts from its reducer's own default. No
+restore action, no root-reducer wrapper.
 
 ```typescript
-import { combineReducers, configureStore } from '@reduxjs/toolkit';
-import { listenerMiddleware } from './listener';
-import { reducer as appReducer } from './app/app.reducer';
-import { reducer as routerReducer } from './router/router.reducer';
+import { configureStore } from '@reduxjs/toolkit';
+import type { StateFromReducersMapObject } from '@reduxjs/toolkit';
+import { initAppListeners } from './listener';
+import { appReducer } from './app/app.reducer';
+import { routerReducer } from './router/router.reducer';
 
-export const rootReducer = combineReducers({
+/** The app's branches. Exported for the test harness under `__tests__`, which
+ *  builds an isolated store with exactly this shape and only the listeners under test. */
+export const reducer = {
   app: appReducer,
   router: routerReducer,
-});
+};
 
-export const store = configureStore({
-  reducer: rootReducer,
-  middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().prepend(listenerMiddleware.middleware),
-});
+/** The store's shape, spelled from the reducer map so `makeStore` can accept
+ *  part of it before any store exists. */
+export type RootState = StateFromReducersMapObject<typeof reducer>;
 
-export type RootState = ReturnType<typeof rootReducer>;
-export type AppDispatch = typeof store.dispatch;
+/** Build the app's store. Called once, from `main.tsx`. */
+export function makeStore(preloadedState?: Partial<RootState>) {
+  return configureStore({
+    reducer,
+    preloadedState,
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().prepend(initAppListeners().middleware),
+  });
+}
+
+export type AppStore = ReturnType<typeof makeStore>;
+export type AppDispatch = AppStore['dispatch'];
 ```
+
+`main.tsx` calls `makeStore()` once (with the saved snapshot, if the app persists one) and hands
+the result to `<Provider>`. There is no module-level `store` constant: a singleton would be created
+at import time by whichever module imported it first, including a test.
 
 ---
 
 ## src/store/index.ts
 
-Re-exports everything from `store.ts` and provides typed hooks for use in components.
+Re-exports the factory and types from `store.ts` and provides typed hooks for use in components.
 
 ```typescript
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState, AppDispatch } from './store';
 
-export { store, rootReducer } from './store';
-export type { RootState, AppDispatch } from './store';
+export { makeStore } from './store';
+export type { AppStore, RootState, AppDispatch } from './store';
 
+/** Typed `useDispatch`, so a thunk-free dispatch still narrows action creators. */
 export const useAppDispatch = () => useDispatch<AppDispatch>();
+
+/** Typed `useSelector`, so selectors read a known state shape. */
 export const useAppSelector = <T>(selector: (state: RootState) => T): T =>
   useSelector(selector);
+```
+
+---
+
+## src/store/__tests__/makeTestHarness.ts
+
+The one test seam: an isolated store over the app's own `reducer` map, with only the listeners
+under test registered through the app's own `registerListener`, and every dispatched action
+recorded. Full source and rules in
+[building-ripe-tests → the harness](../building-ripe-tests/SKILL.md#the-harness); scaffold it
+verbatim from there. It lives inside `store/` because it is the store's test seam, not a
+project-wide `src/test-utils.ts`.
+
+---
+
+## src/config.ts
+
+Bare exported consts, and the **only** module that reads `import.meta.env` — a grep for it has
+exactly one hit (`STORE-M-ENV-OUTSIDE-CONFIG`). Journey parameters (timeouts, feature flags) are
+resolved here and read by listeners, never threaded through component props.
+
+```typescript
+/** True in a Vite dev build. The one place `import.meta.env` is read. */
+export const isDevBuild: boolean = import.meta.env.DEV;
 ```
 
 ---
@@ -194,8 +252,11 @@ export const useAppSelector = <T>(selector: (state: RootState) => T): T =>
 import type { LoadingState } from '@/store/types';
 
 export interface AppState {
+  /** True once the boot sequence has finished. */
   loaded: boolean;
+  /** Mirrors `navigator.onLine`, kept current by the app listener. */
   online: boolean;
+  /** Where the boot sequence is. */
   status: LoadingState;
 }
 ```
@@ -233,7 +294,7 @@ const defaultState: AppState = {
   status: LOADING_STATES.idle,
 };
 
-export const reducer = createReducer(defaultState, (builder) => {
+export const appReducer = createReducer(defaultState, (builder) => {
   builder
     .addCase(appLoaded, (state) => {
       state.loaded = true;
@@ -256,10 +317,12 @@ export const reducer = createReducer(defaultState, (builder) => {
 import type { Location } from 'react-router-dom';
 
 export interface RouterState {
+  /** The router's current location, or null before the first navigation. */
   location: Location | null;
 }
 
 export interface SetLocationPayload {
+  /** The location the router just navigated to. */
   location: Location;
 }
 ```
@@ -288,7 +351,7 @@ const defaultState: RouterState = {
   location: null,
 };
 
-export const reducer = createReducer(defaultState, (builder) => {
+export const routerReducer = createReducer(defaultState, (builder) => {
   builder.addCase(setLocation, (state, action) => {
     state.location = action.payload.location;
   });

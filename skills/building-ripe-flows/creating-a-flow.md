@@ -8,7 +8,7 @@
 
 ## What's covered
 - Step 0 — the journey is a human decision
-- The file-by-file walkthrough (definition → decision utils → brain → optional R2 → components → wiring)
+- The file-by-file walkthrough (declare the flow → decision utils → the listener → optional R2 → components → wiring)
 - Linear flows vs branching flows — how much brain you actually write
 
 For deeper coverage of any step:
@@ -39,43 +39,76 @@ The worked example below is `troubleshoot` (Device Doctor) from the canonical `r
 
 ---
 
-## Step 1: The Definition — Pure Data
+## Step 1: Declare the Flow — Literally, in the Flows Reducer
 
-`steps` is an ordered array of milestone ids and nothing else. No transitions, guards, meta, or components.
+`steps` is an ordered array of milestone ids and nothing else. No transitions, guards, meta, or components. It is declared **in the flows reducer's initial state**, so the journey reads off the page and is in the store the moment the store exists:
 
 ```typescript
-// src/store/troubleshoot/troubleshoot.definition.ts
-import type { FlowDefinition } from '@/store/flows/types';
-
-// Narrative milestones. "Replace battery" / "loading" / "clean up" are screens of these steps.
-export const troubleshoot: FlowDefinition = {
-	id: 'troubleshoot',
-	steps: ['triage', 'battery', 'connectivity', 'storage', 'update', 'summary'],
+// src/store/flows/flows.reducer.ts
+const initialState: FlowsState = {
+	ids: ['troubleshoot', 'cleanup'],
+	byId: {
+		// Narrative milestones. "Replace battery" / "loading" / "clean up" are screens of these steps.
+		troubleshoot: {
+			status: 'idle',
+			steps: uniqueSteps(['triage', 'battery', 'connectivity', 'storage', 'update', 'summary']),
+			currentStep: null,
+			data: {},
+		},
+		cleanup: {
+			status: 'idle',
+			steps: uniqueSteps(['select', 'cleaning', 'done']),
+			currentStep: null,
+			data: {},
+		},
+	},
 };
+
+export const flowsReducer = createReducer(initialState, (builder) => { /* the engine cases, unchanged */ });
 ```
 
-By convention `bundleId === flowId === the definition id`. The definition is seeded into engine state at store-init (Step 6), so the flow's shape is already in the store the moment it exists.
+`uniqueSteps` (in `flows.helpers.ts`) throws at module load on a repeated id, so two indistinguishable positions fail the first test rather than a customer's journey. The names the feature uses to talk about its steps live in the feature branch's `types.ts` as an as-const map, together with the flow id:
+
+```typescript
+// src/store/troubleshoot/types.ts
+export const TROUBLESHOOT_FLOW_ID = 'troubleshoot';
+
+export const STEP = {
+	triage: 'triage',
+	battery: 'battery',
+	connectivity: 'connectivity',
+	storage: 'storage',
+	update: 'update',
+	summary: 'summary',
+} as const;
+export type TroubleshootStep = (typeof STEP)[keyof typeof STEP];
+```
+
+A reducer test asserts that every `STEP` value is in the declared list, and pins the list itself — see [flow-tests.md → the step-order test](flow-tests.md#the-step-order-test). This is the one edit a feature makes inside `store/flows/`: its own entry in `initialState`. **There is no `<feature>.definition.ts`** and no `createFlowsReducer(definitions)` factory — older repos have both (`[contract-only]`), and the audit flags them (`FLOWS-M-GENERATED-FLOWS`).
 
 ---
 
-## Step 2: The Decision Utils — Pure Functions in `modules/`
+## Step 2: The Decision Utils — Pure Functions in `lib/utils/<feature>/`
 
-Every decision the brain makes delegates to a pure function here: no Redux, independently testable. This is what keeps the brain a thin dispatcher and the logic greppable.
+Every decision the brain makes delegates to a pure function here: no Redux, independently testable. This is what keeps the listener a thin dispatcher and the logic greppable. `lib/utils/` is the one home for pure helpers; `lib/modules/` holds deep implementations fronted by an `api/` function (a bridge, a codec). Neither is a top-level `src/modules/` (`ORG-M-SECOND-TREE`).
 
 ```typescript
-// src/modules/troubleshoot.decide.ts
+// src/lib/utils/troubleshoot/decide.ts
+import { STEP } from '@/store/troubleshoot/types';
+import type { TroubleshootStep } from '@/store/troubleshoot/types';
+
 type StepData = Record<string, unknown> | undefined;
 
-// full-checkup order; `summary` is terminal
-const FULL_ORDER = ['battery', 'connectivity', 'storage', 'update', 'summary'] as const;
+/** Full-checkup order; `summary` is terminal. */
+const FULL_ORDER: readonly TroubleshootStep[] = [STEP.battery, STEP.connectivity, STEP.storage, STEP.update, STEP.summary];
 
-export const routeFromTriage = (triage: StepData): string =>
-	triage?.mode === 'focus' && typeof triage.focus === 'string' ? triage.focus : 'battery';
+export const routeFromTriage = (triage: StepData): TroubleshootStep =>
+	triage?.mode === 'focus' && isTroubleshootStep(triage.focus) ? triage.focus : STEP.battery;
 
-export const afterSubsystem = (current: string, triage: StepData): string => {
-	if (triage?.mode === 'focus') return 'summary'; // focused run skips the rest
-	const i = FULL_ORDER.indexOf(current as (typeof FULL_ORDER)[number]);
-	return i >= 0 && i < FULL_ORDER.length - 1 ? FULL_ORDER[i + 1] : 'summary';
+export const afterSubsystem = (current: TroubleshootStep, triage: StepData): TroubleshootStep => {
+	if (triage?.mode === 'focus') return STEP.summary; // focused run skips the rest
+	const index = FULL_ORDER.indexOf(current);
+	return FULL_ORDER[index + 1] ?? STEP.summary;
 };
 
 // Screen selection is ALSO a pure util — a step is a (step-data) → screen function
@@ -86,7 +119,7 @@ export const batteryScreen = (battery: StepData): BatteryScreen => {
 };
 ```
 
-Screen selection (`batteryScreen`) lives here too — the component imports it (Step 5). Keep decisions out of both the reducer and the component; they live in `modules/`.
+`isTroubleshootStep` is a `value is TroubleshootStep` guard beside `STEP` in `types.ts` — the way to narrow a string read out of the data bag without an `as` cast. Screen selection (`batteryScreen`) lives here too — the component imports it (Step 5). Keep decisions out of both the reducer and the component; they live in `lib/utils/`.
 
 ---
 
@@ -96,15 +129,18 @@ The brain is the feature's `Listener[]`. Two listeners matter at creation time �
 
 ```typescript
 // src/store/troubleshoot/troubleshoot.listener.ts (excerpt)
-const FLOW_ID = troubleshoot.id;
+import { TROUBLESHOOT_FLOW_ID, STEP } from './types';
+import { routeFromTriage } from '@/lib/utils/troubleshoot/decide';
+
+const FLOW_ID = TROUBLESHOOT_FLOW_ID;
 const isMine = (flowId: string) => flowId === FLOW_ID;
 
 export const listener: Listener[] = [
-	// route-start: start the seeded flow when the route is entered and it's idle
+	// route-start: start the declared flow when the route is entered and it's idle
 	{
 		actionCreator: setLocation,
 		effect: (_action, api) => {
-			const flow = selectFlow(api.getState() as RootState, FLOW_ID);
+			const flow = selectFlow(api.getState(), FLOW_ID);
 			if (flow && flow.status === 'idle') api.dispatch(flowStart({ flowId: FLOW_ID }));
 		},
 	},
@@ -115,12 +151,12 @@ export const listener: Listener[] = [
 	{
 		actionCreator: flowNext,
 		effect: (action, api) => {
-			if (!isMine(action.payload.flowId)) return;
-			const flow = selectFlow(api.getState() as RootState, FLOW_ID);
+			if (!flowNext.match(action) || !isMine(action.payload.flowId)) return;
+			const flow = selectFlow(api.getState(), FLOW_ID);
 			if (!flow) return;
 			const go = (step: string | null) => step && api.dispatch(flowSetCurrent({ flowId: FLOW_ID, step }));
 			switch (flow.currentStep) {
-				case 'triage':
+				case STEP.triage:
 					return go(routeFromTriage(flow.data.triage)); // each case delegates to a pure util
 				// … connectivity guard, subsystem skip, linear default — see the-brain-listener.md
 			}
@@ -130,7 +166,9 @@ export const listener: Listener[] = [
 ];
 ```
 
-Two rules the full reference expands on: every `switch` case delegates to a pure util in `modules/` (no Redux in the decision), and a guard that means "stay here" is `return undefined` — the connectivity case dispatches nothing until `data.connectivity.connected` is true, so `flowNext` is a no-op and the user stays put. Note the route-start listener guards *differently*: it keys on `setLocation`, which carries no `flowId`, so it selects the flow by its known id rather than using `isMine` — see [the-brain-listener.md → What the Brain Is](the-brain-listener.md#what-the-brain-is) for which listeners guard and how.
+The file is `<feature>.listener.ts`, the same name every branch uses — "brain" is what the listener *does* for a flow, not a file suffix; a `<feature>.brain.ts` next to it is a second decision file (`FLOWS-M-GENERATED-FLOWS`). `api.getState()` is typed through `AppStartListening`, so there is no `as RootState`; the creator's `.match` narrows the `UnknownAction` before the payload is read. Any I/O the listener needs is a function in `store/troubleshoot/api/`.
+
+Two rules the full reference expands on: every `switch` case delegates to a pure util in `lib/utils/troubleshoot/` (no Redux in the decision), and a guard that means "stay here" is `return undefined` — the connectivity case dispatches nothing until `data.connectivity.connected` is true, so `flowNext` is a no-op and the user stays put. Note the route-start listener guards *differently*: it keys on `setLocation`, which carries no `flowId`, so it selects the flow by its known id rather than using `isMine` — see [the-brain-listener.md → What the Brain Is](the-brain-listener.md#what-the-brain-is) for which listeners guard and how.
 
 ---
 
@@ -153,11 +191,11 @@ export interface TroubleshootState {
 
 // src/store/troubleshoot/troubleshoot.reducer.ts — dumb assignment, resets on replay
 const defaultState: TroubleshootState = { report: null };
-export const reducer = createReducer(defaultState, (builder) => {
+export const troubleshootReducer = createReducer(defaultState, (builder) => {
 	builder
 		.addCase(troubleshootConcluded, (state, action) => { state.report = action.payload; })
 		.addCase(flowStart, (state, action) => {
-			if (action.payload.flowId === troubleshoot.id) state.report = null;
+			if (action.payload.flowId === TROUBLESHOOT_FLOW_ID) state.report = null;
 		});
 });
 ```
@@ -168,17 +206,17 @@ The report is *derived by a pure util* (`buildReport(flow.data)`) in the conclud
 
 ## Step 5: The Components — Host + Self-Gating Steps
 
-The host lists every step as a named child of `<FlowHost flowId>`, each passed `flowId`. Each step self-gates on `isActive` and renders whichever screen fits its data (a step is a `(data) → screen` function). Full anatomy — the host, the `useFlowStep` binding, screen selection, mount-once — is in [flow-components.md](flow-components.md).
+The journey lists every step as a named child of `<FlowHost flowId>`, each passed its identity — `flowId` and `step`. Each step self-gates on `isActive` and renders whichever screen fits its data (a step is a `(data) → screen` function). Full anatomy — the host, the `useFlowStep` binding, screen selection, mount-once — is in [flow-components.md](flow-components.md).
 
 ```typescript
-// src/components/Troubleshoot/Troubleshoot.tsx — the host IS the composition
+// src/components/Troubleshoot/Troubleshoot.tsx — the JSX IS the step list
 export function Troubleshoot() {
 	return (
-		<FlowHost flowId="troubleshoot">
-			<ProgressHeader flowId="troubleshoot" />
-			<TriageStep flowId="troubleshoot" />
-			<BatteryStep flowId="troubleshoot" />
-			{/* … one named component per step, each passed flowId */}
+		<FlowHost flowId={TROUBLESHOOT_FLOW_ID}>
+			<ProgressHeader flowId={TROUBLESHOOT_FLOW_ID} />
+			<TriageStep flowId={TROUBLESHOOT_FLOW_ID} step={STEP.triage} />
+			<BatteryStep flowId={TROUBLESHOOT_FLOW_ID} step={STEP.battery} />
+			{/* … one named component per step, each passed flowId and step — never a Record<step, render> */}
 		</FlowHost>
 	);
 }
@@ -187,15 +225,17 @@ export function Troubleshoot() {
 Each step is the standard `building-ripe-components` anatomy with one flow-specific guard:
 
 ```typescript
-// src/components/Troubleshoot/BatteryStep.tsx (shape — full version in flow-components.md)
-export function BatteryStep({ flowId }: StepProps) {
-	const { isActive, data, setData } = useFlowStep(flowId, 'battery');
+// src/components/BatteryStep/BatteryStep.tsx (shape — full version in flow-components.md)
+export function BatteryStep({ flowId, step }: StepViewProps) {
+	const { isActive, data, setData } = useFlowStep(flowId, step);
 	if (!isActive) return null;                              // self-gate — blanks output, does NOT unmount
-	if (batteryScreen(data) === 'passed') return <OutcomePanel title="Battery OK ✓" />;
+	if (batteryScreen(data) === 'passed') return <OutcomePanel title={text.battery.passedTitle} />;
 	// … 'replace' screen, then the 'test' screen with setData({ ok }) buttons — see flow-components.md
 	return <StepPanel>{/* … */}</StepPanel>;
 }
 ```
+
+Every step under `components/`, grouping folders allowed (`components/diagnostics/<Check>/`); copy from the locale; variants as `data-*` attributes; no `useState` — the [building-ripe-components](../building-ripe-components/SKILL.md) rules apply unchanged.
 
 `if (!isActive) return null` is the standard early-exit guard from `building-ripe-components` — nothing flow-specific except *what* it gates on. All steps stay mounted for the journey's life; the guard blanks output, it does not unmount. That fact is load-bearing for retry — see [flow-components.md → mount-once](flow-components.md#mount-once--start-on-activation).
 
@@ -203,16 +243,16 @@ export function BatteryStep({ flowId }: StepProps) {
 
 ## Step 6: Wire It Into the Root
 
-A journey isn't live until both its definition (into the engine reducer) and its brain (into the listener registration) are registered.
+A journey isn't live until its flow is declared (Step 1, in `flows.reducer.ts`) and its listener is registered. The flows reducer is one entry in the app's reducer map like any other branch:
 
 ```typescript
-// src/store/store.ts — definitions baked into initial state at boot
-export const rootReducer = combineReducers({
+// src/store/store.ts — the reducer map; flows are in state from boot because the reducer declares them
+export const reducer = {
 	app: appReducer,
 	router: routerReducer,
-	flows: createFlowsReducer([troubleshoot, cleanup]), // ← the app's flows, in state from boot
+	flows: flowsReducer,               // ← declares troubleshoot and cleanup literally
 	troubleshoot: troubleshootReducer, // ← R2 report; cleanup has no branch
-});
+};
 ```
 
 ```typescript
@@ -220,12 +260,11 @@ export const rootReducer = combineReducers({
 import { listener as troubleshootListener } from './troubleshoot/troubleshoot.listener';
 import { listener as cleanupListener } from './cleanup/cleanup.listener';
 
+// Order matters once: when listener A must run before listener B on the same action, say why here.
 const listeners: Listener[][] = [troubleshootListener, cleanupListener];
 ```
 
-`createFlowsReducer` builds the initial `flows` state straight from the definitions — there is no separate seed step and no `seedFlows` helper, despite what older docs say (see the drift note in the SKILL). The engine stays generic: it receives definitions as data and never imports a feature.
-
-> **Direction of travel.** The `createFlowsReducer(...)` factory is the *current seam*, treated as a stopgap: a generating function obfuscates what is really declarative logic. The intended end-state is that the flows reducer is expanded and codified in the code files — declared explicitly, so the flow's shape reads off the page. Same behaviour; prefer the declared form when the project can afford it.
+The engine stays generic: `flows.reducer.ts` names the app's flows as data and imports nothing from a feature. `[contract-only]` Older repos wire `flows: createFlowsReducer([troubleshoot, cleanup])` from `.definition.ts` objects — same state, generated instead of declared; a new app does not.
 
 ---
 
@@ -233,7 +272,7 @@ const listeners: Listener[][] = [troubleshootListener, cleanupListener];
 
 **A branching flow needs a brain** (the `flowNext` switch above). **A purely linear flow barely needs one** — the whole brain is a six-line `flowNext` listener that computes `nextStep(flow)` and commits `flowSetCurrent`, with no `switch`. The `cleanup` sub-flow is exactly that; the code is in [the-brain-listener.md → the linear default](the-brain-listener.md#the-linear-default-and-the-two-ways-to-advance).
 
-**`[contract-only]`** — production `@mcesystems/dtl` DRYs even that away with an *engine-level* default-advance listener (`flows.listener.ts`) so a linear journey costs a `FlowDefinition` and *zero* listener code. The canonical `ripe-flows` engine ships **no** listener — do not expect to find `flows.listener.ts` there. If your project has the default-advance listener, a linear flow needs no brain; if not, write the six lines. Either way, a branching flow always writes its own `flowNext` switch.
+**`[contract-only]`** — production `@mcesystems/dtl` DRYs even that away with an *engine-level* default-advance listener (`flows.listener.ts`) so a linear journey costs a declaration and *zero* listener code. The canonical `ripe-flows` engine ships **no** listener, and the MCE trade-in app deleted the one it inherited because its single journey branches and nothing called the linear default. Write the six lines; a branching flow always writes its own `flowNext` switch. Carry an engine listener only if a second, genuinely linear flow appears.
 
 ---
 
@@ -245,11 +284,13 @@ Renovation — converting an existing config-driven wizard into a Ripe flow whil
 
 ## Quick Verification
 
-- [ ] `steps` is milestones only — no per-step meta, no components in the definition
-- [ ] Every decision the brain makes delegates to a pure util in `modules/`
-- [ ] The engine (`store/flows/`) was not edited
+- [ ] `steps` is milestones only — no per-step meta, no components — declared literally in `flows.reducer.ts` with `uniqueSteps`, and pinned by a reducer test
+- [ ] No `<feature>.definition.ts`, no `<feature>.brain.ts`, no `createFlowsReducer` — FLOW_ID and STEP live in `store/<feature>/types.ts`
+- [ ] Every decision the listener makes delegates to a pure util in `lib/utils/<feature>/`; every probe is a `store/<feature>/api/` function
+- [ ] The engine (`store/flows/`) was not edited beyond the flow's `initialState` entry
 - [ ] No feature/reducer code writes `currentStep` except via `flowSetCurrent` (only the engine's `flowStart` reset also sets it)
+- [ ] No `as` in the listener: `.match` narrows the action, `getState()` is typed
 - [ ] A reducer exists only if the feature has R2 state (a derived conclusion or domain state)
-- [ ] Each step component self-gates with `if (!isActive) return null`
-- [ ] Definition registered in `createFlowsReducer([...])`; brain registered in `listener.ts`
+- [ ] Each step component takes `{ flowId, step }` and self-gates with `if (!isActive) return null`; the journey JSX lists the steps, no render registry
+- [ ] Listener appended to `listeners: Listener[][]` in `listener.ts`
 - [ ] For a renovation: run the checklist in [renovating-a-flow.md](renovating-a-flow.md#quick-verification) as well

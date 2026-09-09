@@ -12,6 +12,7 @@
 - The "do I need to memoise?" test
 - React 19 / React Compiler
 - Parametric selectors
+- Inputs are the fields you read, not the branch — the stable reader
 
 For the upstream question — whether a value belongs in state at all or should be derived — see [state-shape.md → What Belongs in State vs Selectors](state-shape.md#what-belongs-in-state-vs-selectors). For testing derived selectors, see the `building-ripe-tests` skill.
 
@@ -102,3 +103,35 @@ export const selectDemoTags = createSelector(
 );
 // Each id keeps its own slot in the cache. Safe.
 ```
+
+## Inputs Are the Fields You Read, Not the Branch — the Stable Reader
+
+A memoised selector's input selectors name **exactly the fields the result depends on**, never the branch they live in. A selector whose input is `(s) => s.diagnostics` recomputes on every clock tick and every touch sample, because the branch object changes even when the eight verdicts it reads do not — and every component holding it re-renders with it. No component selects a whole branch.
+
+When several callers (a results list, a listener, a pure helper) want a *lookup* rather than a value, return a **stable reader function**: memoised on its inputs, it hands back the same function until one verdict changes, and the function itself keeps the `(id) => …` API:
+
+```typescript
+// store/diagnostics/diagnostics.selectors.ts (excerpt)
+import { createSelector } from "@reduxjs/toolkit";
+import { ALL_CHECKS } from "./types";
+import type { CheckId, Verdict } from "./types";
+
+/** One input per check: the verdict and nothing else. */
+const verdictInputs = ALL_CHECKS.map(
+	(id) => (state: RootState): Verdict | null => state.diagnostics.checks[id].verdict,
+);
+
+/** A reader of any check's verdict, stable until one of them changes. */
+export const selectVerdictOf = createSelector(verdictInputs, (...verdicts): ((id: string) => Verdict | null) => {
+	const byId = new Map<CheckId, Verdict | null>(ALL_CHECKS.map((id, index) => [id, verdicts[index] ?? null]));
+	return (id) => (isCheckId(id) ? (byId.get(id) ?? null) : null);
+});
+```
+
+```typescript
+// in a component
+const verdictOf = useAppSelector(selectVerdictOf);
+// … verdictOf("touchscreen")
+```
+
+The test from above still applies — the reader is a fresh closure, so it *must* be memoised — and the input list is what makes the memo worth having.

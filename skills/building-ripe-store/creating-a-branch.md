@@ -44,7 +44,7 @@ If a spec or interview workflow preceded this task, Step 0 is a *read* of those 
 2. `types.ts` — state shape + payload interfaces
 3. `<feature>.actions.ts` — `createAction` per event
 4. `<feature>.reducer.ts` — default state + assignment cases
-5. `api/<verb><Feature>.ts` — fetch + format response (one file per verb)
+5. `api/<verb><Feature>.ts` — fetch + format response (one file per verb; every side effect of the branch — see [api.md](api.md))
 6. `<feature>.listener.ts` — `Listener[]` with business logic + error handling
 7. `__tests__/` — branch tests, reducer test at minimum (see [testing.md](testing.md))
 8. Register in root `store.ts` (reducer) and `listener.ts` (listener)
@@ -173,7 +173,7 @@ One file per API verb. Each file:
 
 ```typescript
 // store/products/api/fetchProducts.ts
-import { api } from '@/modules/api';
+import { api } from '@/lib/modules/api';   // the deep client lives in lib/modules; this file is the branch's front
 import type { FetchProductsSuccessPayload, Product } from '../types';
 
 export async function fetchProducts(): Promise<FetchProductsSuccessPayload> {
@@ -207,6 +207,8 @@ function formatProducts(entities: ProductEntity[]): FetchProductsSuccessPayload 
 ```
 
 The reducer never sees raw API shape. By the time `fetchProductsSuccess` reaches it, the payload is already in `items` / `byId` form.
+
+This folder is the **only** place the branch touches the outside world — network, storage, a device, a native bridge — and its only caller is the branch's listener. A component never imports from `api/`. The rule, the grep that checks it, and the shapes for shared hardware are in [api.md](api.md).
 
 ---
 
@@ -260,26 +262,23 @@ Which test files the new branch ships with and what they must cover: [testing.md
 
 The branch isn't live until both the reducer and the listener are registered.
 
-**`store/store.ts`** — add to the `reducer` map:
+**`store/store.ts`** — add to the exported `reducer` map. `RootState` is `StateFromReducersMapObject<typeof reducer>`, so it grows with the map; `makeStore(preloadedState?)` accepts the new branch in a snapshot from that moment on:
 
 ```typescript
 import { productsReducer } from './products/products.reducer';
 
-export const store = configureStore({
-	reducer: {
-		// ...existing branches
-		products: productsReducer,
-	},
-	// ...
-});
+export const reducer = {
+	// ...existing branches
+	products: productsReducer,
+};
 ```
 
-**`store/listener.ts`** — add to the `listenerGroups` array:
+**`store/listener.ts`** — add to the `listeners` array:
 
 ```typescript
 import { listener as productsListener } from './products/products.listener';
 
-const listenerGroups: Listener[][] = [
+const listeners: Listener[][] = [
 	// ...existing listener arrays
 	productsListener,
 ];
@@ -300,6 +299,9 @@ Before considering the branch done:
 - [ ] Status uses `LOADING_STATES.*`, not bare strings
 - [ ] Listener handles all error cases (`try`/`catch` + failure dispatch)
 - [ ] Tests exist in `__tests__/`
-- [ ] Reducer registered in `store.ts`
-- [ ] Listener registered in `listener.ts`
+- [ ] Reducer registered in the `reducer` map in `store.ts`
+- [ ] Listener registered in the `listeners` array in `listener.ts`
+- [ ] Every side effect is in `api/`, called only from the listener; the api grep is clean
+- [ ] No `as` anywhere in the branch — `.match` narrows payloads, predicates narrow unknowns
 - [ ] No `useEffect` in components fetching this branch's data
+- [ ] Lint passes from the repo root, the way CI runs it

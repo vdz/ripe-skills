@@ -40,7 +40,7 @@ A full Ripe feature is one vertical slice, built in this order. If a spec or int
 2. **Actions as vocabulary** — name the newly added functionality. Existing actions are often reused — no new actions is a normal outcome. Payloads only where data is actually carried, typed → [action-payloads.md](action-payloads.md)
 3. **Reducer cases** — data mapping and invariant maintenance only (Cardinal Rule 2)
 4. **Listeners** — in the branch, or elsewhere when the cross-branch rule says so; keep them thin → [listeners.md](listeners.md)
-5. **API functions** — new or updated, in the branch's `api/` folder, one file per verb
+5. **API functions** — new or updated, in the branch's `api/` folder, one file per verb; nothing outside `api/` talks to the network or the platform → [api.md](api.md)
 6. **Root wiring** — register the reducer and the listener array ("Adding a Branch to the Root" below)
 7. **Routes before components** — set up routes to the new feature's assets before the components exist → `building-ripe-routing`
 8. **Components** — as the spec/plan commands → `building-ripe-components`
@@ -55,24 +55,55 @@ A full Ripe feature is one vertical slice, built in this order. If a spec or int
 
 ```
 store/
-├── store.ts          # configureStore + typed hooks (root)
-├── listener.ts       # listenerMiddleware + listener registration (root)
-├── types.ts          # Shared types (Listener, LOADING_STATES)
-├── index.ts          # Re-exports
+├── store.ts          # the reducer map, RootState, makeStore(preloadedState?) (root)
+├── listener.ts       # registerListener + initAppListeners (root)
+├── types.ts          # Shared types (Listener union, LOADING_STATES)
+├── index.ts          # Re-exports + typed hooks
+├── __tests__/
+│   └── makeTestHarness.ts        # the one test harness, built from the same reducer map
 └── products/         # One folder per feature
-	├── api/
+	├── api/                      # every side effect of this branch — see api.md
 	│   ├── fetchProducts.ts
 	│   └── updateProduct.ts
 	├── __tests__/
 	│   └── products.reducer.test.ts
-	├── types.ts                  # State shape, payload, API interfaces
+	├── types.ts                  # State shape, payload, API interfaces — always this name
 	├── products.actions.ts
 	├── products.reducer.ts
 	├── products.selectors.ts     # Optional, only if needed
-	└── products.listener.ts
+	└── products.listener.ts      # or listeners/<concern>.listener.ts when one file would not do
 ```
 
 Tests live in `__tests__/` — never alongside source files. Imports use `../` to reach the parent.
+
+The store vocabulary is exactly this: `types`, `actions`, `reducer`, `selectors`, `listener`, `api/`. There is no `.brain.ts`, no `.definition.ts`, no `.config.ts` inside a branch — a listener decides, a reducer declares its defaults literally, and constants live in `types.ts` as `as const` maps with their unions derived from them.
+
+A branch that grows past one listener file splits it by concern under `listeners/` (`store/diagnostics/listeners/clock.listener.ts`, `camera.listener.ts`, …) and re-exports the concatenated array from `<feature>.listener.ts`; the root still registers one array per branch.
+
+### Where the store sits in `src/`
+
+```
+src/
+├── assets/         locales/<lang>.ts (typed copy) · styles/tokens.css · <concern>/ images
+├── components/     <Name>/{<Name>.tsx, <Name>.styled.tsx, types.ts, __tests__/}
+├── config.ts       the ONE module that reads import.meta.env; journey parameters as code
+├── lib/
+│   ├── utils/      pure helpers: a value in, a value out, no I/O (structured by concern)
+│   └── modules/    deep implementations that talk to the outside world (bridge, codec, mock flags)
+├── main.tsx        makeStore(restoreFrom(await readSavedSession())) → <Provider>
+└── store/          as above
+```
+
+Two placement tests, and nothing else:
+
+- **`lib/utils` vs `lib/modules`:** does it touch the outside world? No → `utils`. Yes → `modules`. There is no top-level `modules/` beside `lib/`, and no `utils/` scattered under `components/`.
+- **`lib/modules` vs `store/<branch>/api/`:** a module is *how* something is done (the webview bridge's handshake, the snapshot codec); the branch's `api/` is *the call the listener makes*. When a branch uses a module's side-effecting surface, it gets a thin `api/<name>.ts` that re-exports exactly what it calls, so every side effect is still reachable from `store/*/api/` — see [api.md](api.md). A pure codec in `lib/modules/` (no I/O) is imported like any helper.
+
+`lib/utils` may `import type` from `store/<branch>/types` — a helper that shapes a payload needs its interface — and nothing else from the store. `config.ts` exports bare typed constants (`export const isDevBuild: boolean = import.meta.env.DEV`) and typed parameter resolvers; a grep for `import.meta.env` has exactly one hit.
+
+Code copied in from a library or a sibling app carries a provenance header — where it came from, at which revision, what was kept and what was not — and everything the app does not run is deleted rather than carried. **Its documentation is rewritten on copy, not kept:** a module whose JSDoc describes another tenant's flags is worse than one with none.
+
+Dev-only switches have one home, `lib/modules/mockJourney/` (`flags`, `mockDevice`, `index`). Its index JSDoc names this app's modes — in the trade-in app, full mock (`?mockJourney=1`: the session listener skips the auth handshake and the device api answers with canned facts) and hybrid (`?mockDevice=1`: canned facts, real session) — the flags are sessionStorage-sticky so a reload keeps the mode, and every read is guarded by `isDevBuild` from `config.ts` so the module drops out of the production bundle. A branch reaches it through its own `api/` function, never from a component.
 
 ## Common Tasks
 
@@ -82,80 +113,161 @@ Tests live in `__tests__/` — never alongside source files. Imports use `../` t
 | Adding a new action or payload to an existing branch | [action-payloads.md](action-payloads.md) |
 | Designing or extending state (collections, filters, defaults) | [state-shape.md](state-shape.md) |
 | Writing or naming a selector — inline vs named vs memoised | [selectors.md](selectors.md) |
-| Writing or modifying a listener (single, matcher, debounce, hydration, error handling) | [listeners.md](listeners.md) |
+| Writing or modifying a listener (single, matcher, debounce, hydration, error handling, a hardware check's run) | [listeners.md](listeners.md) |
+| Adding a network or platform call — where it lives, who may call it, the grep rule | [api.md](api.md) |
 | Deciding which tests a new branch ships with | [testing.md](testing.md) |
 | Looking up the canonical scaffold for root files | [store-templates.md](../ripe-init/store-templates.md) |
 | Anything routing-related | `building-ripe-routing` skill |
 
-## The `Listener` Interface
+## The `Listener` Union
 
-`store/types.ts` defines the `Listener` interface that every feature's `<feature>.listener.ts` exports. The Ripe convention is **declarative listener arrays** — each feature exports a `Listener[]` and the root `listener.ts` registers them all in one pass.
+`store/types.ts` defines the `Listener` type that every feature's `<feature>.listener.ts` exports. The Ripe convention is **declarative listener arrays** — each feature exports a `Listener[]` and the root `listener.ts` registers them all in one pass. `Listener` is a discriminated union of the two shapes RTK's `startListening` accepts, so the compiler — not a runtime check — knows which one it is holding:
 
 ```typescript
 // store/types.ts (excerpt)
-import type { ListenerEffectAPI, AnyAction } from "@reduxjs/toolkit";
+import type { ListenerEffectAPI, UnknownAction } from "@reduxjs/toolkit";
 import type { RootState, AppDispatch } from "./store";
 
-export interface BranchActionCreator {
-	type: string;
-	match: (action: unknown) => boolean;
+/**
+ * Any RTK action creator, payload or not. Structural: `match` is the type
+ * predicate RTK reads, and the call signature is `any`-parametered because
+ * call parameters are contravariant — `unknown` would reject every creator
+ * with a payload, `never` every one without.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyActionCreator = { type: string; match: (action: unknown) => action is UnknownAction } & ((...args: any[]) => UnknownAction);
+
+export type ListenerEffect = (
+	action: UnknownAction,
+	listenerApi: ListenerEffectAPI<RootState, AppDispatch>,
+) => void | Promise<void>;
+
+/** Reacts to one action creator. */
+export interface ActionListener {
+	/** The creator whose actions run the effect; its `.match` narrows the payload inside. */
+	actionCreator: AnyActionCreator;
+	/** Runs after the reducers have seen the action. */
+	effect: ListenerEffect;
 }
 
-export interface Listener {
-	actionCreator?: BranchActionCreator | BranchActionCreator[];
-	matcher?: (action: AnyAction) => boolean;
-	effect: (
-		action: AnyAction,
-		listenerApi: ListenerEffectAPI<RootState, AppDispatch>,
-	) => void | Promise<void>;
+/** Reacts to whatever the type predicate admits — `isAnyOf(...)`, or a hand-written guard. */
+export interface MatcherListener {
+	/** Admits the actions that run the effect; the effect narrows again per creator before reading a payload. */
+	matcher: (action: unknown) => action is UnknownAction;
+	/** Runs after the reducers have seen the action. */
+	effect: ListenerEffect;
+}
+
+export type Listener = ActionListener | MatcherListener;
+```
+
+> **Why a union, not one interface with optional fields.** `{ actionCreator?; matcher?; effect }` admits an entry with neither and an entry with both, and the registration code has to cast to reach either. With the union, `"actionCreator" in entry` narrows, and there is exactly one way to hand an entry to RTK:
+
+```typescript
+// store/listener.ts (excerpt)
+import { createListenerMiddleware } from "@reduxjs/toolkit";
+import type { TypedStartListening } from "@reduxjs/toolkit";
+import type { Listener } from "./types";
+import type { RootState, AppDispatch } from "./store";
+
+export type AppStartListening = TypedStartListening<RootState, AppDispatch>;
+
+/** The one path from a `Listener` entry into RTK — the app and the test harness both use it. */
+export function registerListener(startListening: AppStartListening, entry: Listener): void {
+	if ("actionCreator" in entry) {
+		startListening({ actionCreator: entry.actionCreator, effect: entry.effect });
+	} else {
+		startListening({ matcher: entry.matcher, effect: entry.effect });
+	}
+}
+
+export function initAppListeners() {
+	const listenerMiddleware = createListenerMiddleware();
+	const startAppListening = listenerMiddleware.startListening.withTypes<RootState, AppDispatch>();
+	for (const group of listeners) {
+		for (const entry of group) registerListener(startAppListening, entry);
+	}
+	return listenerMiddleware;
 }
 ```
 
-> **Why `actionCreator` is structural.** Under `strict`, no concrete type argument to
-> `ActionCreatorWithPayload<T>` accepts every action creator. `<unknown>` rejects **both** kinds,
-> because call-signature parameters are contravariant (`unknown` is assignable to neither `void`
-> nor a concrete payload type). `<never>` also rejects both, because `match` is a type predicate
-> and puts `payload` in a covariant position. `<any>` accepts both, but only by disabling
-> `@typescript-eslint/no-explicit-any`. `{ type, match }` accepts every form with no `any` and no
-> lint suppression — and it is what RTK itself reads: `startListening` does
-> `predicate = actionCreator.match`. Verified against RTK 2.12 / tsc 5.9; see
-> [store-templates.md](../ripe-init/store-templates.md) for the per-annotation table.
-
-> `AnyAction` on `effect` lets bodies read `action.payload.X` directly, because `AnyAction` carries
-> an `any`-typed `payload` from the library types — the lint rule only flags `any` written in your
-> code. For strict payload typing at the use site, narrow with a cast:
-> `const { userId } = (action as PayloadAction<{ userId: string }>).payload;`.
+> **Reading the payload.** `effect` receives `UnknownAction`, so a body narrows with the creator's own guard before touching `payload` — `if (!checkStarted.match(action)) return;` — and the payload is fully typed from there. **Never** `action.payload as {...}`: the monorepo's root `.eslintrc.js` sets `@typescript-eslint/consistent-type-assertions` to `assertionStyle: "never"`, the client-apps block leaves it in force, and CI lints with that root config — the app's own flat config is not the gate. For a matcher over several creators, narrow per branch: `if (clockStarted.match(action) || clockResumed.match(action)) { … action.payload.id … }`.
 
 `LOADING_STATES` and `LoadingState` also live in `store/types.ts`. See [store-templates.md](../ripe-init/store-templates.md) for the canonical scaffold (const hashmap + derived type, not a TS `enum`).
+
+## The Store Root: Reducer Map, `RootState`, `makeStore`
+
+`store.ts` holds the reducer map as a plain exported object and spells the root type from it. There is no `combineReducers`, no `rootReducer` module, and no `ReturnType<typeof store.getState>` — the type has to exist before any store does, because the factory accepts part of it:
+
+```typescript
+// store/store.ts
+import { configureStore } from "@reduxjs/toolkit";
+import type { StateFromReducersMapObject } from "@reduxjs/toolkit";
+import { initAppListeners } from "./listener";
+import { sessionReducer } from "./session/session.reducer";
+import { flowsReducer } from "./flows/flows.reducer";
+import { productsReducer } from "./products/products.reducer";
+
+/** Exported for the test harness, which builds an isolated store with exactly this shape. */
+export const reducer = {
+	session: sessionReducer,
+	flows: flowsReducer,
+	products: productsReducer,
+};
+
+export type RootState = StateFromReducersMapObject<typeof reducer>;
+
+/**
+ * A factory, not a module-level constant, because one thing happens before the
+ * store exists: the boot reads the saved session and hands it in here. Every
+ * branch the snapshot does not mention starts from the default its reducer
+ * declares. There is no restore action and no reducer wrapper.
+ */
+export function makeStore(preloadedState?: Partial<RootState>) {
+	return configureStore({
+		reducer,
+		preloadedState,
+		middleware: (getDefaultMiddleware) => getDefaultMiddleware().prepend(initAppListeners().middleware),
+	});
+}
+
+export type AppStore = ReturnType<typeof makeStore>;
+export type AppDispatch = AppStore["dispatch"];
+```
+
+```typescript
+// main.tsx (excerpt) — resume is preloadedState, nothing else
+const store = makeStore(restoreFrom(await readSavedSession()));
+store.dispatch(bootstrapRequested());
+```
+
+`restoreFrom` is a pure codec in `lib/modules/persistence/` that turns whatever was saved into a `Partial<RootState>` (or `undefined`), filling in the fields a snapshot never carries (a clock, an in-flight status). Persisting is a listener's job — see [listeners.md](listeners.md) — reading back is the boot's, once.
 
 ## Adding a Branch to the Root
 
 After scaffolding the branch (see [creating-a-branch.md](creating-a-branch.md)), wire it into the root:
 
-**`store/store.ts`** — add to the `reducer` map:
+**`store/store.ts`** — add to the exported `reducer` map (`RootState` follows automatically):
 ```typescript
-import { productsReducer } from './products/products.reducer';
+import { productsReducer } from "./products/products.reducer";
 // ...
-configureStore({
-	reducer: {
-		// ...existing
-		products: productsReducer,
-	},
-	// ...
-});
+export const reducer = {
+	// ...existing
+	products: productsReducer,
+};
 ```
 
-**`store/listener.ts`** — add to the `listenerGroups` array:
+**`store/listener.ts`** — add to the `listeners` array:
 ```typescript
-import { listener as productsListener } from './products/products.listener';
+import { listener as productsListener } from "./products/products.listener";
 // ...
-const listenerGroups: Listener[][] = [
+const listeners: Listener[][] = [
 	// ...existing
 	productsListener,
 ];
 ```
 
-A branch isn't live until **both** are registered.
+A branch isn't live until **both** are registered. Registration order is almost never load-bearing — RTK runs matching listeners concurrently — but when it is (a hardware-release listener that must fire before the one that moves the cursor and opens the next device), put the dependency in a comment on the array.
 
 ## Workflow Checklist
 
@@ -165,18 +277,20 @@ Store Branch Progress:
 - [ ] Create types.ts: state shape + payload interfaces
 - [ ] Create [feature].actions.ts: createAction for each event
 - [ ] Create [feature].reducer.ts: defaultState + simple assignment cases
-- [ ] Create api/[verb][Feature].ts: fetch + format response if needed
+- [ ] Create api/[verb][Feature].ts: every network/platform call of this branch, called only from its listener — see api.md
 - [ ] Create [feature].listener.ts: export Listener[] with business logic + error handling
 - [ ] Create __tests__/[feature].reducer.test.ts + [feature].listener.test.ts — see `building-ripe-tests`
-- [ ] Register reducer in store.ts configureStore
-- [ ] Register listener array in listener.ts initAppListeners
+- [ ] Register reducer in store.ts `reducer` map
+- [ ] Register listener array in listener.ts `listeners`
 - [ ] Verify: reducer `if`s guard data invariants only (e.g. member exists before delete/update) — no business decisions, no API calls
 - [ ] Verify: payloads arrive pre-formatted (match state shape)
 - [ ] Verify: listeners handle all error cases
 - [ ] Verify: no useEffect in components fetching this branch's data
+- [ ] Verify: no `as` in the branch (narrow with `.match`, type predicates, typed factories)
+- [ ] Verify: lint the way CI does — from the repo root with the root config — before every commit
 ```
 
-**Import aliasing:** Use `@` as alias for `src/` in all imports (e.g., `@/store/types`, `@/modules/api`).
+**Import aliasing:** Use `@` as alias for `src/` in all imports (e.g., `@/store/types`, `@/lib/modules/webview`).
 
 ## References
 
@@ -186,7 +300,8 @@ Store Branch Progress:
 | [state-shape.md](state-shape.md) | Designing branch state, picking defaults, handling filtered/searched/sorted views | Six rules, dual structure, pre-computed projections (`filteredItems`), `LOADING_STATES`, defaults, full branch example |
 | [selectors.md](selectors.md) | Writing or naming a selector; deciding inline vs named vs memoised | Named-selector criteria, plain function vs `createSelector`, the memoisation test, React 19 / React Compiler, parametric selectors |
 | [action-payloads.md](action-payloads.md) | Adding actions, designing payloads, naming | Payload-as-interface rule, action naming, actions file template, common pitfalls |
-| [listeners.md](listeners.md) | Writing or modifying a listener | 8 patterns (single, matcher, predicate, debounce, preemptive hydration, two-listener intent chain, concurrency, concurrent-action guards), error handling, action chains, common mistakes |
+| [listeners.md](listeners.md) | Writing or modifying a listener | 13 patterns (single, matcher, predicate, debounce, preemptive hydration, two-listener intent chain, concurrency, concurrent-action guards, confirm window, one clock listener, liveness key, watchdog over unclocked time, release backstop), error handling, action chains, common mistakes |
+| [api.md](api.md) | Adding a network or platform call | The `store/<branch>/api/` rule, the grep, thin fronts over `lib/modules`, hardware modules keyed by id with a generation counter, `config.ts` |
 | [testing.md](testing.md) | Deciding which tests a new branch needs | The branch's test files, coverage expectations, pointers into `building-ripe-tests` |
 | [store-templates.md](../ripe-init/store-templates.md) | Looking up the canonical scaffold for root files | Initial files generated by `ripe-init`; canonical source for `LOADING_STATES` |
 | `building-ripe-routing` skill | Routing setup, the `setLocation` bridge, route-driven hydration | Separate skill — load it if the task touches routes or navigation |

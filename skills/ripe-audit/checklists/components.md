@@ -24,19 +24,87 @@ rg -nE '<(button|input|a)\b[^>]*>' src/components | rg -v 'onClick|onChange|href
 
 ---
 
-## COMPONENT-H-TRANSIENT-PROP — Styled component with transient prop
+## COMPONENT-H-TRANSIENT-PROP — Variant expressed as a prop, a class string, or an ancestor selector
 
-**Rule source:** building-ripe-components/SKILL.md → Styled Components ("Class-based styling, full stop"); styled.md → Variants Pattern
+**Rule source:** building-ripe-components/SKILL.md → "Styled Components: Attributes In, Tokens Out"; styled.md → "Variants Are `data-*` Attributes"
 **Severity:** H
 **Heuristics:**
 ```
 rg -n 'styled\.\w+<\{[^}]*\$\w+' src/components       # generic on .styled with $-prop
 rg -n 'styled\([^)]+\)<\{[^}]*\$\w+'  src/components  # styled(Wrapper) variant
 rg -n '<\w+\s+\$\w+' src/components                    # call site with $-prop
+rg -n 'className=\{(cn|clsx|classNames)\(' src/components   # className assembly — a class-string variant vocabulary
+rg -n '&\.[a-z-]+\s*\{' src/components --glob '*.styled.tsx'  # class-branching selectors in a styled file
+rg -n '\[data-[a-z-]+(="[^"]*")?\]\s+[A-Za-z&.]' src/components --glob '*.styled.tsx'  # attribute on an ancestor, styling a descendant
 ```
 **False positives:**
-- None inside `src/components/`. Atomic primitives in a shared library MAY use transient props — but the project has no such library yet.
-**Fix template:** Move the variant to a `className`. Styled component reads CSS that branches on classes. See styled.md → Variants Pattern.
+- None inside `src/components/`. A `className` that carries only the theme class on the App root (`theme-<name>`) is not a variant.
+- An attribute selector followed by a pseudo-element (`&[data-variant="link"]::after`) is the same element, not a descendant.
+**Fix template:** Put the variant on the element it styles as a `data-*` attribute (`<SkipButton data-variant={variant}>`); the styled component branches with `&[data-variant="link"] { … }`. A continuous value crosses as an inline `--_name` property typed by `LocalProperties`. See styled.md.
+
+---
+
+## COMPONENT-H-STYLED-INTERPOLATION — `${` in a `.styled.tsx`
+
+**Rule source:** building-ripe-components/styled.md → "No Interpolations in a Styled File"
+**Severity:** H
+**Heuristics:**
+```
+rg -n '\$\{' src/components --glob '*.styled.tsx'
+rg -n 'ThemeProvider|\(\{\s*theme\s*\}\)' src
+```
+**False positives:** none. `styled(Base)` inheritance and `css` helpers with no `${` are fine; the check is the interpolation.
+**Fix template:** A finite variant → `data-*` attribute selector. A continuous value → inline `--_name` custom property. A colour, size or font → `var(--token)` from `assets/styles/tokens.css`. A theme value → a token the theme overlay redeclares, never a JS theme object.
+
+---
+
+## COMPONENT-M-LITERAL-TEXT — Copy written in a component instead of the locale
+
+**Rule source:** building-ripe-components/SKILL.md → "Copy Comes From the Locale"
+**Severity:** M (H when a sibling `strings.ts` exists — a second locale)
+**Heuristics:**
+```
+rg -n '>[^<>{}]*[A-Za-z]{3,}[^<>{}]*<' src/components --glob '!**/__tests__/**'
+rg -n '(title|aria-label|placeholder|alt)="[A-Za-z]' src/components --glob '!**/__tests__/**'
+find src/components -name 'strings.ts' -o -name 'copy.ts' -o -name 'labels.ts'
+```
+**False positives:**
+- `aria-label` on a DOM-attach atom whose name is not user-visible copy (`aria-label="Camera preview"`) — note it, grade L.
+- Non-language literals: units, punctuation, a `·` separator.
+**Fix template:** Add the field to `assets/locales/<lang>.ts` (typed by `Strings`), read it through `text.<screen>.<field>`; templates go through `fill(text.x, { values })`. Delete the sibling `strings.ts`.
+
+---
+
+## COMPONENT-M-RENDER-REGISTRY — Steps composed through a record of render functions, or a host rendering over its screen
+
+**Rule source:** building-ripe-components/SKILL.md → "The JSX Is the Step List; a Host Takes Its Screen as `children`"
+**Severity:** M
+**Heuristics:**
+```
+rg -nU 'Record<\s*\w+,\s*\(?[^>]*\)?\s*=>\s*(JSX\.Element|ReactElement|ReactNode)' src/components
+rg -n '\[step\]\(|\[stepId\]\(|registry\[' src/components
+rg -n 'children' src/components/*/types.ts src/components/**/types.ts
+```
+For any host (a component that stages a check or step), READ its return: does it render the library screen it wraps as `{children}`, bare, or does it draw its own frame around/over it?
+**False positives:**
+- A `Record<CheckId, string>` of copy keys or asset paths — data, not render functions.
+- A host whose frame is the explainer beat shown *instead of* the screen, not around it (`DtlTestStep`).
+**Fix template:** List the steps in the journey's JSX; the host takes the screen as `children` and renders it bare once the step is live.
+
+---
+
+## COMPONENT-M-PARAM-PROP — Journey parameter threaded as a prop
+
+**Rule source:** building-ripe-components/SKILL.md → "Props Are Identity; Parameters Come From `config.ts`"
+**Severity:** M
+**Heuristics:**
+```
+rg -n '(timeoutMs|allowSkip|allowTestSkip|maxAttempts|threshold)\??:' src/components/**/types.ts
+rg -n '<\w+Step\b[^>]*\b(timeout|allowSkip|max)\w*=' src/components
+```
+**False positives:**
+- A primitive (`SkipControl { offered }`) — it has no identity of its own; its host selects the flag and hands it in.
+**Fix template:** The listener reads the parameter from `config.ts` (`resolveJourneyConfig`, `resolve<Check>Params`) and writes the outcome to the store; the step component receives `{ flowId, step }` and selects.
 
 ---
 
@@ -51,7 +119,7 @@ rg -nE '\buseState\b' src/components
 **False positives:**
 - Atomic primitives in a shared library. (Currently the project has none — every hit is a finding.)
 - Nothing else. A justifying comment at the site (`REVISIT`, `UI-only`, "hardware loop", "presentation only") does not exempt it: hardware loops run in listeners over `store/<branch>/api/` and write a `progress` record; windows are the check's `clock`; disclosures are `ui.openPanel`. The one hook a screen may keep is a `useRef` + `useEffect` in a DOM-attach atom (a `<video>` taking the open stream), and that atom holds no `useState` either.
-**Fix template:** Move the state into the appropriate store branch. Common destinations: `current.editing`, `ui.popovers.<id>`, `ui.expandedRows[id]`, a check's `progress` / `clock`.
+**Fix template:** Move the state into the appropriate store branch. Common destinations: the step's data bag (`setStepData`) for a journey draft, a `ui` branch field for chrome state (an open sheet, the theme), a check's `progress` / `clock` for what the hardware loop produces.
 
 ---
 
@@ -142,6 +210,8 @@ rg -nE '<(div|span|p|h[1-6]|ul|li|section|article|header|footer)\b' src/componen
 When the above checks find no violations in code that COULD have had them, record an OK finding:
 
 - All children take IDs (no entity-object props) → "OK — N/N child components take IDs"
-- All styled components are class-based (no transient props) → "OK — 0 transient props found across N styled components"
-- All useEffect sites are legitimate → "OK — N/N useEffect sites accounted for (router bridge, DOM listeners only)"
-- All useState sites are in atomic primitives (or there are zero useState sites) → "OK — no useState in non-atomic components"
+- All variants are `data-*` attributes and no styled file interpolates → "OK — 0 transient props, 0 className variants, 0 `${` across N styled files"
+- All copy comes from the locale → "OK — 0 literals in src/components, no sibling strings files"
+- Every host takes its screen as children; the journey JSX is the step list → "OK — no render registries"
+- All useEffect sites are legitimate → "OK — N/N useEffect sites accounted for (router bridge, DOM-attach atoms only)"
+- No useState anywhere in `src/components` → "OK — 0 useState sites"

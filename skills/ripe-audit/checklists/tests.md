@@ -30,6 +30,7 @@ done
 ```bash
 rg -l 'export const listener\s*:\s*Listener\[\]' src/store
 # for each, check the corresponding __tests__/<branch>.listener.test.ts
+# a concern file store/<branch>/listeners/<concern>.listener.ts needs __tests__/<branch>.listener.<concern>.test.ts (or <concern>.test.ts)
 ```
 **False positives:** branches with `listener: Listener[] = []` (no listeners registered yet — still in development).
 **Fix template:** scaffold `__tests__/<branch>.listener.test.ts` with the 4-line skeleton: `vi.resetModules()` → dynamic import → `makeTestHarness(listener)` → dispatch + `vi.waitFor`. See building-ripe-tests/listener-tests.md.
@@ -42,10 +43,25 @@ rg -l 'export const listener\s*:\s*Listener\[\]' src/store
 **Severity:** M
 **Heuristic:**
 ```bash
-rg -n "configureStore\(" src --type ts | rg -v 'src/store/store\.ts|src/test-utils\.ts'
+rg -n "configureStore\(" src --type ts | rg -v 'src/store/store\.ts|src/store/__tests__/makeTestHarness\.ts'
+rg -n "combineReducers\(|reducer:\s*\{" src --glob '**/__tests__/**'   # a harness with its own reducer map has drifted from the app
 ```
-**False positives:** none expected. If the harness genuinely doesn't fit, grow the harness rather than bypass it.
-**Fix template:** replace the inline `configureStore({...})` with `makeTestHarness(listenerArray)` from `@/test-utils`.
+**False positives:** none expected. If the harness genuinely doesn't fit, grow the harness rather than bypass it. A second harness (a carried-over `makeStore` from a library) is the finding, not a false positive.
+**Fix template:** replace the inline `configureStore({...})` with `makeTestHarness(listenerArray, { preloadedState })` from `@/store/__tests__/makeTestHarness`; the harness must import the app's `reducer` map and register through the app's `registerListener`.
+
+---
+
+## TEST-M-CAST-DOUBLE — Test double built with a cast
+
+**Rule source:** building-ripe-tests/SKILL.md → "Typed Test Doubles"
+**Severity:** M
+**Heuristics:**
+```bash
+rg -n 'as unknown as|as any|as never|\(globalThis\.window as|\(window as' src --glob '**/__tests__/**'
+rg -n 'delete \(' src --glob '**/__tests__/**'
+```
+**False positives:** `as const`. A cast next to a `vi.mock` factory for a third-party module with broken typings, with a comment saying so — grade L.
+**Fix template:** a factory returning the declared type with every member present (`installFakeMce`, `fakeStream`); jsdom constructors for DOM objects; the app's own `value is T` guard; `Reflect.deleteProperty(target, 'key')` to remove an API.
 
 ---
 
@@ -126,6 +142,7 @@ done
 
 - All branches with reducers have reducer tests → "OK — N/N branches covered"
 - All branches with non-empty listeners have listener tests → "OK — N/N listener files covered"
-- No `configureStore` outside `store.ts` and `test-utils.ts` → "OK — harness used everywhere"
+- No `configureStore` outside `store.ts` and `store/__tests__/makeTestHarness.ts` → "OK — harness used everywhere"
+- No casts in test files → "OK — every double is a typed factory"
 - No snapshot tests → "OK — no snapshot drift"
 - All listener tests reset modules → "OK — no test-bleed via module-level guards"

@@ -15,11 +15,14 @@ components/
 	├── ProductInternals/     # (optional) Internal components
 	├── ProductCard.tsx       # Component logic
 	├── ProductCard.styled.tsx # Styled components
-	├── types.ts              # Component-specific types
+	├── types.ts              # Component-specific types (only when the component owns a type)
+	├── __tests__/            # Behaviour tests
 	└── index.ts              # Re-export only
 ```
 
 `index.ts` contains only: `export { ProductCard } from './ProductCard';`
+
+Grouping folders are allowed when a family of components reads as one: `components/diagnostics/<Check>/` for the device checks and the views they share (`CoverageRing` lives there — it reads check progress), `components/primitives/` for generic presentational atoms (`SkipControl`, `Countdown`, `InstructionCard`, `TrustedHtml`). Everything React lives under `components/` — never a second tree (`dtl/components`, `views/`) a reader has to know to search.
 
 The uniform shape holds even for a one-file component: any component can grow styles, types, or tests without a restructure, and the pure re-export `index.ts` gives every component a stable public import path while its internals stay free to split. Collapsing "simple" components back to loose `.tsx` files breaks the navigate-any-project-blindfolded property the fixed structure buys.
 
@@ -32,7 +35,6 @@ import type { ProductCardProps } from './types';
 
 export function ProductCard({ productId }: ProductCardProps) {
 	// ═══ SETUP ═══
-	const { t } = useTranslation();
 	const product = useAppSelector((state) => state.products.byId[productId]);
 
 	// ═══ EARLY EXIT ═══
@@ -56,12 +58,14 @@ export function ProductCard({ productId }: ProductCardProps) {
 **Rules:**
 - Function declaration syntax — never `const Component: React.FC` or arrow functions
 - Minimal props — components select their data from the store. A child that takes an ID and selects the rest doesn't break when the entity shape changes and needs nothing pre-read by the parent — props collapse to identifiers.
-- Setup: hooks and selectors only
+- Setup: hooks and selectors only. A custom hook is a read of the store or of the router — one that touches `navigator.*`, `window.*` or a timer is a platform call in disguise and belongs to a listener through `store/<branch>/api/`.
+- Derived values are helpers. A value computed from what SETUP read is a hoisted HELPERS-band function called from the return (or from SETUP, when the early exit needs it) — not an inline expression, not a `useMemo`.
 - Early exit: guard clauses, loading/empty/error states
 - Return: semantic styled components ONLY — no raw HTML tags
 - Every semantic element in the return carries a `data-testid` — kebab-case, component-prefixed (see JSX Rules)
 - Helpers: defined below the return statement
-- No `useEffect` for hydration/API calls. DOM manipulation only when necessary.
+- No `useState`, and no `useEffect` for hydration/API calls. The one hook a screen may keep is a `useRef` + `useEffect` pair in a DOM-attach atom — see [patterns.md → the DOM-attach atom](patterns.md#the-dom-attach-atom--the-one-ref--effect).
+- Copy comes from the locale (`text`), never a literal in the JSX — see [Copy Comes From the Locale](#copy-comes-from-the-locale).
 
 ### HELPERS Are Preferred — Module-Scope Only When Cross-Actor
 
@@ -139,6 +143,59 @@ export interface PanelLayoutProps {
 ```
 
 JSDoc every interface field — the monorepo requires it, with a unit suffix on any measured quantity.
+
+Two questions decide which `types.ts` a type lives in, and whether the file exists at all:
+
+- **Who would change this type?** If the answer is this component, it is in this component's `types.ts`. A type every step shares — the `{ flowId, step }` props contract — lives in the `types.ts` of the one component that defines the contract, and the other steps `extends` it:
+
+  ```typescript
+  // components/JourneyStep/types.ts — the one props contract every step shares
+  export interface StepViewProps {
+  	/** The flow this step belongs to. */
+  	flowId: string;
+  	/** This step's id. */
+  	step: string;
+  }
+
+  // components/DtlTestStep/types.ts
+  import type { ReactNode } from 'react';
+  import type { StepViewProps } from '@/components/JourneyStep/types';
+
+  export interface DtlTestStepProps extends StepViewProps {
+  	/** The library screen that runs the check, rendered bare once the customer has tapped Start. */
+  	children: ReactNode;
+  }
+  ```
+
+- **Does the component own any type?** A component with no props and no owned type has no `types.ts`. Do not create an empty one to satisfy the folder shape.
+
+### Nominal Types Are Classes
+
+When a value must be distinguishable from every other value of its primitive — markup vetted for `dangerouslySetInnerHTML`, an id that must not be confused with another id — the type is a class with a private field, not a branded primitive:
+
+```typescript
+// components/primitives/TrustedHtml/TrustedHtmlSource.ts
+export class TrustedHtmlSource {
+	readonly #markup: string;
+
+	constructor(markup: string) {
+		this.#markup = markup;
+	}
+
+	/** The markup itself, for `dangerouslySetInnerHTML` and nothing else. */
+	get markup(): string {
+		return this.#markup;
+	}
+}
+```
+
+A branded string (`string & { __brand: 'TrustedHtml' }`) can only be constructed through an `as` cast, and client apps forbid `as`. A class is constructed by `new`, narrows by `instanceof`, and cannot be forged from a plain string anywhere in the codebase.
+
+### Props Are Identity; Parameters Come From `config.ts`
+
+A step component receives *who it is* — `{ flowId, step }` — and selects everything else. A timeout, a skip flag, a retry ceiling, a threshold is journey configuration: the listener reads it from `config.ts` (`resolveJourneyConfig`), or the component selects the store state the listener wrote from it. Nothing of that kind is threaded down as a prop, and a gate that applies to the whole journey ("may any check be skipped?") is one journey-config flag, not a per-step prop or a per-check sheet.
+
+Primitives are the exception by design: `SkipControl` takes `offered`, `label`, `variant` because it has no identity of its own — the check that renders it selects the journey's skip flag and hands it in.
 
 ## JSX Rules
 
@@ -237,23 +294,76 @@ return (
 
 Why every element, not just interactive ones: testing automation asserts the *visibility* of display elements ("is the price shown once loading finishes?") as much as it needs stable handles to poke controls — and the cost is one attribute per element. The ids live inline in the JSX so they're visible exactly where the element is used, and the same styled component can carry different ids at different use sites. Because ids derive deterministically from names that already exist, a test can predict them without a registry.
 
-Class-based styling, avoid prop-based. Runtime state (e.g., `disabled`, `active`, `selected`) goes on `className`; the styled component reads pure CSS that branches on that class.
+### Styled Components: Attributes In, Tokens Out
+
+**Variants are `data-*` attributes, and a styled file contains no interpolations.** No transient props (`$size`, `$active`, `$onDark`), and no `className` variants assembled with a `cn()` helper either. The component puts the variant on the element it styles as a data attribute; the styled component reads pure CSS that branches on that attribute:
 
 ```typescript
-export const AddToCart = styled.button`
-	background: var(--accent);
-	&.disabled {
-		background: var(--text-muted);
+// SkipControl.styled.tsx
+export const SkipButton = styled.button`
+	pointer-events: auto;
+
+	&[data-variant="quiet"],
+	&[data-variant="link"] {
+		padding: var(--space-8);
+		color: var(--color-ink-muted);
+		cursor: pointer;
+	}
+
+	&[data-variant="link"] {
+		text-decoration: underline;
 	}
 `;
-// Component uses: <AddToCart className={cn({ disabled: isOutOfStock })} />
+
+// SkipControl.tsx
+<SkipButton type="button" data-variant={variant} onClick={onSkip}>{label}</SkipButton>
 ```
 
-Theme tokens are CSS custom properties defined in a global `theme.css` — see [styled.md](styled.md#theming-via-css-variables).
-
-**Class-based styling, full stop.** No transient props (`$size`, `$active`, `$onDark`, etc.) — even for variants you'd set once at the call site. Use `className` for every variant: stable, runtime, anything. The styled component reads pure CSS that branches on classes. See [styled.md → Variants Pattern](styled.md#variants-pattern) for the canonical examples and the "why".
+The attribute sits on the element whose style it changes — never on an ancestor with a descendant selector (`&[data-active] Child { … }`), which hides which element a variant belongs to. A continuous value (a percentage, a pixel count) crosses into the styled file as an inline `--_name` custom property typed by `LocalProperties`. Colours, spacing and type are `var(--token)` reads of `assets/styles/tokens.css`; a styled file never names a hex value or a pixel size the foundation already has a token for. See [styled.md](styled.md) for the token contract, the variant pattern and the local-property pattern.
 
 Names describe purpose: `ProductCardWrapper` not `Container`, `AddToCart` not `Button`.
+
+## Copy Comes From the Locale
+
+No literal text under `src/components`. Every word a screen shows is a field of the typed locale resource in `assets/locales/<lang>.ts`, reached through the one `text` import; a template with values goes through `fill`:
+
+```typescript
+import { fill, text } from '@/assets/locales';
+
+<ReviewTitle data-testid="offer-review-title">{text.offerReview.title}</ReviewTitle>
+<ConfirmationText>{fill(text.confirmedCount, { count: cameraNumber, total: 2 })}</ConfirmationText>
+```
+
+The resource is shaped like i18next resources — nested objects, `{{name}}` placeholders — so adopting the library later is a swap of `text.x.y` for `t('x.y')`, not a rewrite. A `strings.ts` sitting next to a component is a finding: it is a second locale that no language switch reaches. The grep that keeps this honest, run before a commit:
+
+```bash
+rg -n '>[^<>{}]*[A-Za-z]{3,}[^<>{}]*<' src/components --glob '!**/__tests__/**'
+```
+
+Hits are literals to move, with two exceptions the audit grades L and notes rather than fails: an `aria-label` on a DOM-attach atom whose name no user reads (`aria-label="Camera preview"`), and non-language literals (units, a `·` separator). An accessible name a user can hear on a control they use — a copy button, a skip control — is copy, and reads from `text` like the rest (`aria-label={buttonName}`).
+
+## One Primitive for a Repeated Control
+
+A control that several screens render — a skip affordance, a countdown, an instruction card — is one component under `components/primitives/`, with a `data-variant` for the ways it sits among its neighbours. The tell is a screen-local `renderSkip()`/`renderRing()` helper that differs from its sibling on another screen only in the styled wrapper it picks. Four checks each rendering their own skip button is four places for the skip rule to drift; `SkipControl` renders nothing unless `offered`, so a required check cannot be bypassed from any screen, and the host decides what a skip means:
+
+```typescript
+export function SkipControl({ offered, label, accessibleName, variant = "quiet", onSkip }: SkipControlProps) {
+	// ═══ SETUP ═══
+	const buttonName = accessibleName ?? label;
+
+	// ═══ EARLY EXIT ═══
+	if (!offered) {
+		return null;
+	}
+
+	// ═══ RETURN ═══
+	return (
+		<SkipButton type="button" data-variant={variant} title={buttonName} aria-label={buttonName} onClick={onSkip}>
+			{label}
+		</SkipButton>
+	);
+}
+```
 
 ## Composition Over Configuration
 
@@ -295,11 +405,50 @@ const panels = [
 
 If you think you've hit one of these, ask — don't decide alone.
 
+### The JSX Is the Step List; a Host Takes Its Screen as `children`
+
+In a flow, the routed journey's return *is* the step order. A host that stages a screen in beats — an explainer, then the check itself — takes that screen as `children`, declared by the journey right where the step is listed:
+
+```typescript
+// AssessmentJourney.tsx — read top to bottom, this is the journey
+<FlowHost flowId={ASSESSMENT_FLOW_ID}>
+	<LandingStep flowId={ASSESSMENT_FLOW_ID} step={STEP.landing} />
+	<DtlTestStep flowId={ASSESSMENT_FLOW_ID} step={STEP.touchscreen}>
+		<Touchscreen flowId={ASSESSMENT_FLOW_ID} step={STEP.touchscreen} />
+	</DtlTestStep>
+	<DtlTestStep flowId={ASSESSMENT_FLOW_ID} step={STEP.buttons}>
+		<PhysicalButtons flowId={ASSESSMENT_FLOW_ID} step={STEP.buttons} />
+	</DtlTestStep>
+	<OfferReviewStep flowId={ASSESSMENT_FLOW_ID} step={STEP.offerReview} />
+</FlowHost>
+
+// DtlTestStep.tsx — the host renders its children bare once the check is live
+export function DtlTestStep({ flowId, step, children }: DtlTestStepProps) {
+	// ═══ SETUP ═══
+	const { isActive } = useFlowStep(flowId, step);
+	const phase = useAppSelector((state) => selectPhase(state, step));
+
+	// ═══ EARLY EXIT ═══
+	if (!isActive) {
+		return null;
+	}
+
+	// ═══ RETURN ═══
+	if (phase === "active") {
+		return <TestSurface>{children}</TestSurface>;
+	}
+
+	return <TestExplainer step={step} />;
+}
+```
+
+Two shapes this replaces, both findings: a `Record<string, (props: StepProps) => ReactElement>` registry keyed by step id, which is the config array again with functions for values; and a host that renders its own frame *over* the library screen, which clips a check that owns the viewport and misplaces taps judged by coordinate. The host wraps; the journey lists.
+
 Use styled-component inheritance for shared visual patterns (`styled(Card)` in step's `.styled.tsx`).
 
 ## Clean Return Statement
 
-No logic in JSX. Extract ternaries to helpers, compute `cn()` in SETUP:
+No logic in JSX. Extract ternaries to helpers; compute a variant's `data-*` value in SETUP:
 
 ```typescript
 // ❌ Ternary in JSX
@@ -339,6 +488,7 @@ const branches = { b1: { result: "Return to Customer", reason: "working, no faul
 ## Component Behavior Rules
 
 - **Passive and reactive** — reads state, dispatches actions, nothing else
+- **Nothing a component shows is component state.** A check's phase, a countdown, a live progress record, an open disclosure, a step's draft answer — each is store state a listener wrote or `useFlowStep(flowId, step).data` the step set through `setData`. A `REVISIT` or "UI-only" comment does not license a `useState`; see [patterns.md → No `useState`](patterns.md#no-usestate--reflect-everything-in-the-store).
 - **Application logic lives in listeners.** Components dispatch intents; listeners own business decisions, side effects, and any resulting state/feedback (toasts, errors). Service modules (Native bridges, async persistence libraries, third-party SDKs) are exempt — their internals are blackboxes from the app's POV. See [building-ripe-store/listeners.md → Service Modules](../building-ripe-store/listeners.md#service-modules--exempt-from-all-logic-in-listeners).
 - **No business logic** — no API calls, no complex decisions, no `useState`
 - **Never trigger data loading** — data should already be in the store when rendering
@@ -350,18 +500,21 @@ const branches = { b1: { result: "Return to Customer", reason: "working, no faul
 - [ ] Create folder: components/ComponentName/
 - [ ] ComponentName.tsx with SETUP → EARLY EXIT → RETURN → HELPERS
 - [ ] ComponentName.styled.tsx with semantic names + two-level aliases
-- [ ] types.ts derived from store types
+- [ ] types.ts when the component owns a type (derive from store types; step props extend the shared contract)
 - [ ] index.ts with single re-export
 - [ ] Return reads as content document (no implementation primitives)
 - [ ] Every semantic element has a `data-testid` (kebab-case, component-prefixed)
-- [ ] No raw HTML, no ternaries, no inline cn() in return
-- [ ] Styled components use classes, not props
-- [ ] No useEffect for data loading
+- [ ] No raw HTML, no ternaries, no className assembly in return
+- [ ] Variants are `data-*` attributes on the element they style; no `${` in the .styled.tsx; values are `var(--token)` or `var(--_local)`
+- [ ] Copy is `text.*` from the locale — no literal text in the JSX
+- [ ] No useState; no useEffect for data loading (a DOM-attach atom is the one ref + effect)
+- [ ] Journey parameters (timeouts, skip flags) come from config.ts via the store, not props
 - [ ] File is ~100 lines or under (over = a second responsibility crept in — split it out, don't trim)
 - [ ] Tests in __tests__/ subdirectory
+- [ ] Root lint passes (`pnpm run lint` from the repo root, not only the app's) before the commit
 ```
 
-**Import aliasing:** Use `@` for `src/` (e.g., `@/store/products/types`).
+**Import aliasing:** Use `@` for `src/` (e.g., `@/store/products/types`, `@/assets/locales`).
 
 **For detailed patterns**: See [patterns.md](patterns.md)
 **For styled naming conventions**: See [styled.md](styled.md)

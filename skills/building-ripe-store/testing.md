@@ -24,6 +24,7 @@ The reducer test is the minimum for Step 7 — reducers are pure functions, so t
 - [ ] Every action with a reducer case has a transition test
 - [ ] Default state is asserted (via `@@INIT` — see reducer-tests.md)
 - [ ] Every listener entry has at least one test, including its failure path
-- [ ] No hand-rolled stores — listener and selector tests go through `makeTestHarness` (scaffolded by [ripe-init's store templates](../ripe-init/store-templates.md))
+- [ ] No hand-rolled stores — listener and selector tests go through `makeTestHarness` from `store/__tests__/makeTestHarness.ts`, which builds from the app's own `reducer` map, accepts `preloadedState` and registers entries through the same `registerListener` the app uses (scaffolded by [ripe-init's store templates](../ripe-init/store-templates.md))
+- [ ] Test doubles are typed factories (`fakeMce()`, `fakeStream()`) that satisfy the whole interface — no `as any`, no `as unknown as`
 
 For the full test-quality rules (what to assert, what not to, file naming when a test file grows), see the `building-ripe-tests` skill's Cardinal Rules.

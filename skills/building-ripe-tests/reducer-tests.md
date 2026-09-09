@@ -36,6 +36,19 @@ describe('demos.reducer', () => {
 
 The `@@INIT` action is conventional — it triggers the default value of the `createReducer`. Any unrecognised action does the same; `@@INIT` is the canonical label.
 
+When the literal default **is** the contract — a flows reducer that declares a journey's step list, a diagnostics branch that declares every check id — the default-state test spells the whole literal out, so a reordered or dropped step is a one-line failure:
+
+```typescript
+it('declares the assessment journey in order', () => {
+	const state = flowsReducer(undefined, { type: '@@INIT' });
+	expect(state.byId.assessment.steps).toEqual([
+		'landing', 'permissions', 'touchscreen', 'buttons', 'cameraBack', 'cameraFront',
+		'condition', 'damage', 'background', 'offerReview', 'voucher',
+	]);
+	expect(state.byId.assessment).toMatchObject({ status: 'idle', currentStep: null, data: {} });
+});
+```
+
 ### 2. One action, one transition
 
 Most cases assert a single state field changing for a single action.

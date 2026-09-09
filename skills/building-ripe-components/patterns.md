@@ -4,6 +4,7 @@
 - Writing a component's render logic — loading guards, early exits, conditional blocks
 - Rendering a collection from the store (`items` / `byId`)
 - Wiring event handlers that dispatch
+- A screen needs a ref to a DOM node (a `<video>`, a canvas)
 - Reviewing a component for common Ripe mistakes (`useState`, fetching on mount, logic in components)
 
 ## Contents
@@ -11,6 +12,7 @@
 - Conditional rendering
 - List rendering
 - Event handlers
+- The DOM-attach atom — the one ref + effect
 - Common mistakes
 
 ## Early Exit Patterns
@@ -124,13 +126,37 @@ export function ProductCard({ productId }: ProductCardProps) {
 
 Use helpers (below return) when the dispatch needs more than one line.
 
+## The DOM-Attach Atom — the One Ref + Effect
+
+Some work only the DOM can do: hand a `MediaStream` to a `<video>`, size a canvas to its box. That is the one place a screen keeps a `useRef` and a `useEffect`, and it is isolated in a tiny atom that holds no `useState` and makes no decision — the listener opened the hardware through `store/<branch>/api/`; the atom attaches what is already open while a prop says it is streaming, and lets go when it is not:
+
+```typescript
+// components/diagnostics/CameraPreview/CameraPreview.tsx
+export function CameraPreview({ step, streaming }: CameraPreviewProps) {
+	// ═══ SETUP ═══
+	const videoRef = useRef<HTMLVideoElement>(null);
+
+	useEffect(() => {
+		const video = videoRef.current;
+		if (!video) return;
+		video.srcObject = streaming ? cameraStream(step) : null;
+		if (streaming) playQuietly(video);
+	}, [step, streaming]);
+
+	// ═══ RETURN ═══
+	return <PreviewVideo ref={videoRef} playsInline muted aria-label="Camera preview" />;
+}
+```
+
+`cameraStream(step)` is a read of the hardware module keyed by check id (see [building-ripe-store → api.md](../building-ripe-store/api.md)); opening and closing the camera is the check listener's job. If the atom starts to open, sample, time or decide, the logic has leaked back into a component.
+
 ## Common Mistakes
 
 ### No `useState` — Reflect Everything in the Store
 
-The Ripe rule is unambiguous: **avoid `useState` entirely**. Every piece of state — including state that feels "transient" or "ephemeral" (whether a field is being edited, the in-progress draft value, whether a popover is open) — belongs in the Redux store.
+The Ripe rule is unambiguous: **nothing a component shows is component state.** Every piece of state — including state that feels "transient" or "ephemeral" (whether a field is being edited, the in-progress draft value, whether a popover is open, how far a hardware check has got) — belongs in the Redux store.
 
-Why: state that lives in a component can't be read by other features, can't survive a re-mount, can't be inspected in devtools, drifts out of sync with the global truth, and almost always grows into "wait, we need that elsewhere" 3 months later.
+Why: state that lives in a component can't be read by other features (the progress bar cannot hide while a check runs if the check's phase is local), can't survive a re-mount, can't be inspected in devtools, drifts out of sync with the global truth, and almost always grows into "wait, we need that elsewhere" 3 months later.
 
 The standard cases that LOOK like local state:
 
@@ -138,12 +164,15 @@ The standard cases that LOOK like local state:
 |---|---|
 | "Is this field being edited?" | `current.editing: { field, draft } \| null` |
 | "What has the user typed since clicking into the field?" | Same — `current.editing.draft` |
-| "Is this popover / modal open?" | `ui.popovers.<id>` or `ui.modal` |
+| "Is this popover / disclosure open?" | `ui.openPanel` (one open at most, closed on every step change) |
 | "What's the active tab?" | `ui.activeTab` |
-| "Has this row been expanded?" | `ui.expandedRows[id]` |
-| "Has the user dismissed this banner?" | `ui.dismissedBanners[id]` |
+| "Which theme is on?" | `ui.theme`, rendered as `theme-<name>` on the App root |
+| "Is the check in its explainer or running?" | the check's `phase` in its branch, reset on step entry |
+| "How many taps / which cells so far?" | the check's `progress` record, written by its listener |
+| "How long is left?" | the check's `clock`, ticked by the one clock listener |
+| "What has the customer answered on this step?" | `useFlowStep(flowId, step).data`, written through `setData` |
 
-In every case the answer is: dispatch an action, write to the store, render from a selector. Components are passive projections.
+In every case the answer is: dispatch an action, write to the store, render from a selector. Components are passive projections. A comment at the site (`REVISIT`, `UI-only`, "hardware loop", "presentation only") does not exempt a `useState`; the hardware loop runs in a listener over `store/<branch>/api/` and writes a record, and the component selects it.
 
 ```typescript
 // ❌ Wrong — local state for anything app-visible
@@ -154,7 +183,7 @@ function InlineField({ value, onCommit }) {
 }
 
 // ✅ Correct — store-driven; component is a pure projection
-function InlineField({ field, value }) {
+function InlineField({ field, value }: InlineFieldProps) {
 	const dispatch = useAppDispatch();
 	const editing = useAppSelector(selectEditing);
 	const isEditing = editing?.field === field;
@@ -162,11 +191,30 @@ function InlineField({ field, value }) {
 	if (!isEditing) {
 		return <Display onClick={() => dispatch(beginEdit({ field, initialValue: value }))}>{value}</Display>;
 	}
-	return <EditInput value={editing.draft}
-	                  onChange={(e) => dispatch(setEditDraft({ draft: e.target.value }))}
-	                  onBlur={() => dispatch(commitEdit())} />;
+	return (
+		<EditInput
+			value={editing.draft}
+			onChange={(event) => dispatch(setEditDraft({ draft: event.target.value }))}
+			onBlur={() => dispatch(commitEdit())}
+		/>
+	);
+}
+
+// ✅ A step's own answer lives in the flow's step data, not in the component
+function ConditionStep({ flowId, step }: StepViewProps) {
+	const { isActive, data, setData } = useFlowStep(flowId, step);
+	if (!isActive) return null;
+	return (
+		<ConditionAnswers data-testid="condition-answers">
+			<ConditionAnswer data-selected={data?.condition === "good"} onClick={() => setData({ condition: "good" })}>
+				{text.condition.good}
+			</ConditionAnswer>
+		</ConditionAnswers>
+	);
 }
 ```
+
+The only ref + effect a screen keeps is the DOM-attach atom above — and that atom has no `useState` either.
 
 ### Loading data — listeners hydrate; components don't fetch
 

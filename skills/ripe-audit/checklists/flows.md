@@ -2,7 +2,7 @@
 
 **Scope gate:** these checks apply only when the project runs the flow engine — `src/store/flows/` exists. If it doesn't, skip this checklist entirely (don't emit N/A cards).
 
-**Rule sources** cite `building-ripe-flows` (currently a draft skill, not yet shipped in this repo). Each card states the rule inline so the check is self-contained.
+**Rule sources** cite `building-ripe-flows`. Each card states the rule inline so the check is self-contained.
 
 ---
 
@@ -13,16 +13,16 @@
 **Heuristics:**
 ```
 ls src/store/flows/
-rg -nP "from '@/(store/(?!flows)|modules/)" src/store/flows/
+rg -nP "from ['\"]@/(store/(?!flows)|lib/utils/|components/)" src/store/flows/
 git log --oneline -- src/store/flows/
 ```
-- The canonical engine is six files: `flows.actions.ts`, `flows.reducer.ts`, `flows.selectors.ts`, `flows.helpers.ts`, `flows.hooks.ts`, `types.ts`. Flag extra files (a feature's listener, a feature-named helper) living inside `store/flows/`.
-- Flag any engine file importing from a feature branch or `modules/` — the engine must not know features exist.
-- Flag git history showing the engine re-edited alongside feature commits (after its initial landing / deliberate engine upgrades).
+- The canonical engine is six files: `flows.actions.ts`, `flows.reducer.ts`, `flows.selectors.ts`, `flows.helpers.ts`, `flows.hooks.ts`, `types.ts`. Flag extra files (a feature's listener, a `flows.brain.ts`, a feature-named helper) living inside `store/flows/`.
+- Flag any engine file importing from a feature branch or `lib/utils/` — the engine must not know features exist. The engine's `flows.reducer.ts` **declaring the app's flows literally in its initial state is the one place the engine names a journey** — that is the registration point, not a feature edit.
+- Flag git history showing the engine re-edited alongside feature commits (after its initial landing / deliberate engine upgrades). Adding a flow's entry to `initialState` is a registration, not an engine edit.
 **False positives:**
-- A single engine-level default-advance listener (`[contract-only]` pattern) — allowed to exist; its *size* is graded by FLOWS-M-FAT-ENGINE-LISTENER, not here.
-- Registering a new flow happens in `store.ts` (`createFlowsReducer([...])`) and `listener.ts` — those edits are outside the engine and correct.
-**Fix template:** Move the feature code out: listener → `src/store/<feature>/<feature>.listener.ts`, decisions → `src/modules/<feature>.decide.ts`. The engine diff should revert to zero.
+- A single engine-level default-advance listener (`[contract-only]` pattern) — allowed to exist; its *size* is graded by FLOWS-M-FAT-ENGINE-LISTENER, not here. The trade-in app deleted it: a generic linear brain no feature calls is dead code (see ORG-M-DEAD-MODULE).
+- Registering a new flow is an `initialState.byId` entry in `flows.reducer.ts` (with `uniqueSteps`) plus its brain in `listener.ts`.
+**Fix template:** Move the feature code out: listener → `src/store/<feature>/<feature>.listener.ts`, decisions → `src/lib/utils/<feature>/`. The engine diff should revert to zero.
 
 ---
 
@@ -66,13 +66,13 @@ For each entry listener, READ the effect body and ask: "what happens on the seco
 
 ## FLOWS-H-DECISION-PLACEMENT — Transition decision in a reducer or component
 
-**Rule source:** building-ripe-flows/SKILL.md cardinal rule #1 + the mental model: `flowNext`/`flowBack`/`flowGoto` are inert intents; the feature's brain listener reads intake, delegates the decision to a pure function in `modules/`, and commits via `flowSetCurrent`. Reducers and components never decide where the journey goes.
+**Rule source:** building-ripe-flows/SKILL.md cardinal rule #1 + the mental model: `flowNext`/`flowBack`/`flowGoto` are inert intents; the feature's brain listener reads intake, delegates the decision to a pure function in `lib/utils/<feature>/`, and commits via `flowSetCurrent`. Reducers and components never decide where the journey goes.
 **Severity:** H
 **Heuristics:**
 ```
 rg -nU 'addCase\(\s*(flowNext|flowBack|flowGoto)' src/store --glob '!src/store/flows/**'
 rg -n 'dispatch\(\s*(flowSetCurrent|flowDone)' src/components
-rg -n '(nextStep|prevStep|steps\[)' src/components
+rg -n '(nextStep|stepIndex|steps\[)' src/components
 ```
 - A reducer reacting to a nav intent is deciding a transition → H.
 - A component dispatching `flowSetCurrent`/`flowDone` directly is committing a move the brain should own → H.
@@ -80,8 +80,8 @@ rg -n '(nextStep|prevStep|steps\[)' src/components
 **False positives:**
 - Components dispatching the *intents* (`next()`/`back()`/`goTo()` from `useFlow`) — that is exactly their job; only committing the move is the violation.
 - The engine's own `flows.reducer.ts` handling `flowSetCurrent` — excluded by the glob.
-- A brain listener with a small inline `switch (currentStep)` that immediately delegates each case to a `modules/<feature>.decide.ts` util — canonical. If the branching *computation* itself (multi-condition routing off intake values) sits inline in the listener instead of a pure module, note it as an L (testability), not an H.
-**Fix template:** Move the decision to `src/modules/<feature>.decide.ts` (pure, independently testable); the brain calls it and dispatches `flowSetCurrent` with the result. The component goes back to dispatching the inert intent.
+- A brain listener with a small inline `switch (currentStep)` that immediately delegates each case to a `lib/utils/<feature>/` util — canonical. If the branching *computation* itself (multi-condition routing off intake values) sits inline in the listener instead of a pure util, note it as an L (testability), not an H.
+**Fix template:** Move the decision to `src/lib/utils/<feature>/<decision>.ts` (pure, independently testable); the brain calls it and dispatches `flowSetCurrent` with the result. The component goes back to dispatching the inert intent.
 
 ---
 
@@ -140,8 +140,27 @@ rg -n '\.data\[[^\]]+\]' src/store --glob '!src/store/flows/**'
 
 ---
 
+## FLOWS-M-GENERATED-FLOWS — Flows generated from definitions instead of declared
+
+**Rule source:** building-ripe-flows/SKILL.md → "Declared, not generated"; creating-a-flow.md Step 1
+**Severity:** M
+**Heuristics:**
+```
+rg -n 'createFlowsReducer|FlowDefinition|initialData' src
+find src/store -name '*.definition.ts' -o -name '*.brain.ts'
+rg -n 'steps:\s*\[' src/store/flows/flows.reducer.ts | rg -v 'uniqueSteps'
+```
+- A factory building the flows state from definition objects, or a `.definition.ts` file, is the finding: the step order should read off `flows.reducer.ts`.
+- A `steps:` literal not wrapped in `uniqueSteps([...])` is an L — a repeated id would make two positions indistinguishable.
+- A `.brain.ts` beside a `.listener.ts` is a second decision file; the listener is the brain.
+**False positives:** none in a Ripe app. A library that still exports `createFlowsReducer` for other consumers is not this app's concern.
+**Fix template:** Declare each flow as a literal `initialState.byId[flowId]` in `flows.reducer.ts` with `uniqueSteps([...])`; move the definition's constants (`FLOW_ID`, `STEP` as-const map, check-id bridges) into `store/<feature>/types.ts`; merge the brain into the listener.
+
+---
+
 ## OK — Sections to verify and report compliant
 
+- Flows declared literally with `uniqueSteps`, no definition/brain files → "OK — N flows read off flows.reducer.ts"
 - Engine untouched by feature work → "OK — `store/flows/` matches the canonical six files, no feature imports"
 - `currentStep` written only by `flowSetCurrent` + the `flowStart` reset → "OK — sole-writer invariant holds (N assignment sites, all engine-legal)"
 - All entry effects safe to re-run → "OK — N/N entry listeners idempotent (overwrite-or-guard verified)"

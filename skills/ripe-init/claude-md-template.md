@@ -25,12 +25,13 @@ This project follows **The Ripe Method** — a strict separation of concerns:
 - **Components** are passive and reactive — they read from the store and dispatch actions. No business logic, no API calls, no `useEffect` for data loading.
 - **Reducers** do simple assignment and mechanical data maintenance — an `if` may guard a data invariant (e.g. does this member exist before delete/update); never business decisions, never API calls.
 - **Listeners** orchestrate everything and own all business decisions — they react to actions, call pure helpers, make API calls, and dispatch results.
-- **Helpers** live in `modules/` — genuinely pure, reusable functions called *from* listeners; no Redux, no decisions of their own. This keeps listeners thin and lets pure logic be unit-tested without a store.
+- **Helpers** live in `lib/utils/` — genuinely pure, reusable functions called *from* listeners; no Redux, no decisions of their own. This keeps listeners thin and lets pure logic be unit-tested without a store. Deep implementations fronted by an `api/` function (a bridge, a codec) live in `lib/modules/`.
+- **I/O** — every network or platform call is a function in `store/<branch>/api/`, called only from a listener. `config.ts` is the one reader of `import.meta.env`.
 
 ## TSX Return Statement Rules (CRITICAL)
 1. Semantic names only — no implementation names
 2. Two-level alias pattern
-3. No ternaries or inline cn() in JSX
+3. No ternaries or className assembly in JSX — variants are `data-*` attributes
 4. Short inline dispatch lambdas ARE OK
 5. Visual separators are CSS, not components
 6. Tooltips use native title attribute
@@ -48,20 +49,28 @@ import { Header, Title, Content, Actions } from "./ComponentName.styled";
 ## Key Files
 ```
 src/
-├── modules/           # Pure helpers called from listeners (no Redux)
+├── assets/
+│   ├── locales/       # Typed copy — `text` (en.ts); components never hold literals
+│   └── styles/        # tokens.css — design tokens as CSS variables, the layer order
+├── config.ts          # Bare consts; the only reader of import.meta.env
+├── lib/
+│   ├── utils/         # Pure helpers called from listeners (no Redux)
+│   └── modules/       # Deep implementations fronted by a store/<branch>/api/ function
 ├── store/
-│   ├── store.ts       # configureStore + typed hooks
-│   ├── listener.ts    # Listener middleware + registration
-│   ├── types.ts       # Shared types (Listener, LoadingState)
+│   ├── store.ts       # reducer map + makeStore(preloadedState?)
+│   ├── listener.ts    # registerListener + initAppListeners
+│   ├── types.ts       # Shared types (Listener union, LoadingState)
+│   ├── __tests__/     # makeTestHarness — the one test seam
 │   ├── app/           # App state branch
 │   └── router/        # React Router ↔ Redux bridge
-├── components/
-│   └── App/           # Root component with setLocation bridge
+├── components/        # Every React component; grouping folders allowed
+│   ├── App/           # Root component with setLocation bridge
+│   └── GlobalStyle/   # Reset + base layers; imports tokens.css
 ├── routes/
 │   ├── router.ts      # createHashRouter setup
 │   ├── routes.tsx      # Route tree
 │   └── types.ts       # AppRouteObject
-└── main.tsx           # Entry point
+└── main.tsx           # Entry point — makeStore() once
 ```
 
 ## Skills to Follow
@@ -77,6 +86,7 @@ npm install
 npm run dev           # dev server
 npx vitest run        # run tests
 npx tsc --noEmit      # type check
+npm run lint          # from the repo root when the app lives in a monorepo — CI lints from there
 ```
 
 ## Backend Contracts (DO NOT CHANGE)
@@ -84,6 +94,7 @@ npx tsc --noEmit      # type check
 
 ## Testing
 - **Tests go in `__tests__/` subdirectories** — never alongside source
+- **Harness:** `store/__tests__/makeTestHarness.ts`; test doubles are typed factories in `*.test-utils.ts`, never casts
 - **Framework:** Vitest with jsdom
 - **Total:** 0 tests
 ```

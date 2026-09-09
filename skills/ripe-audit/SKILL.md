@@ -11,9 +11,9 @@ description: Audit a Ripe codebase for maintenance quality — Ripe-skill compli
 
 The audit answers this through three lenses:
 
-1. **Ripe compliance** — does the code follow the patterns in `building-ripe-store`, `building-ripe-components`, `building-ripe-routing`? Reducers stay dumb? Listeners own logic? Components are passive? Routes drive composition?
+1. **Ripe compliance** — does the code follow the patterns in `building-ripe-store`, `building-ripe-components`, `building-ripe-routing`, `building-ripe-flows`? Reducers stay dumb? Listeners own logic, with I/O behind `store/<branch>/api/`? Components are passive, with `data-*` variants and locale copy? Routes drive composition? Flows are declared, not generated?
 2. **Clean code** — are individual files small enough to read in one sitting? Are components shallow enough to follow? Are helpers in the right scope? Is dead code present?
-3. **Organisation** — does the folder structure match conventions? Are imports consistent (`@` alias usage)? Are types co-located? Are tests where they should be?
+3. **Organisation** — does the folder structure match conventions (one `components/` tree, `lib/{utils,modules}`, one `config.ts`)? Are imports consistent (`@` alias usage)? Are types co-located? Are tests where they should be? Is anything carried over that nothing imports?
 
 A passing audit means a new contributor can read any file in the project and understand what it's doing without having to chase definitions through ten other files. That's the bar.
 
@@ -83,7 +83,7 @@ Ship as both:
 | [checklists/components.md](checklists/components.md) | Per-rule checks against `building-ripe-components` |
 | [checklists/store.md](checklists/store.md) | Per-rule checks against `building-ripe-store` |
 | [checklists/routing.md](checklists/routing.md) | Per-rule checks against `building-ripe-routing` |
-| [checklists/flows.md](checklists/flows.md) | Per-rule checks against `building-ripe-flows` (draft) — only when `src/store/flows/` exists |
+| [checklists/flows.md](checklists/flows.md) | Per-rule checks against `building-ripe-flows` — only when `src/store/flows/` exists |
 | [checklists/tests.md](checklists/tests.md) | Per-rule checks against `building-ripe-tests` |
 | [checklists/clean-code.md](checklists/clean-code.md) | File size, JSX depth, helper count, dead code |
 | [checklists/organisation.md](checklists/organisation.md) | Folder structure, imports, naming, test locations |

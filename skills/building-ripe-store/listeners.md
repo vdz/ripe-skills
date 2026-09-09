@@ -16,6 +16,11 @@
 - Pattern 6: Two-listener intent chain (decide + execute)
 - Pattern 7: Listener concurrency
 - Pattern 8: Concurrent-action guards
+- Pattern 9: The confirm window (a platform one-liner is still api + listener)
+- Pattern 10: One clock listener ticks every clock
+- Pattern 11: The liveness key (attempt + generation)
+- Pattern 12: The watchdog over unclocked time
+- Pattern 13: The release backstop
 - Error handling
 - Reading state inside listeners
 - Chaining actions
@@ -47,7 +52,22 @@ export const listener: Listener[] = [
 ];
 ```
 
-All listener arrays are registered centrally in `store/listener.ts` via `initAppListeners()`.
+All listener arrays are registered centrally in `store/listener.ts`: `initAppListeners()` walks them and hands each entry to `registerListener(startListening, entry)` — the same function the test harness uses, so a listener runs identically in the app and under test. `Listener` is the discriminated union from `store/types.ts` (see [SKILL.md → The `Listener` Union](SKILL.md#the-listener-union)); an entry is either `{ actionCreator, effect }` or `{ matcher, effect }`, never both, never neither.
+
+**Narrowing the payload.** `effect` receives `UnknownAction`. Read the payload only after the creator's own guard, which is the RTK way and needs no cast:
+
+```typescript
+{
+	actionCreator: checkStarted,
+	effect: async (action, api) => {
+		if (!checkStarted.match(action)) return;   // from here `action.payload` is CheckRefPayload
+		const { id } = action.payload;
+		// …
+	},
+},
+```
+
+The example above destructures `{ dispatch, getState }` for brevity; a listener that calls more than two members of the api takes it whole as `api` and reads `api.dispatch`, `api.getState()`, `api.delay()`, `api.signal`, `api.cancelActiveListeners()`. `getState()` returns `RootState` — no cast.
 
 ## Service Modules — Exempt from "All Logic in Listeners"
 
@@ -100,15 +120,33 @@ import { isAnyOf } from "@reduxjs/toolkit";
 
 ## Pattern 3: Predicate-Based
 
+A hand-written matcher is a **type predicate** — `(action: unknown) => action is UnknownAction` — because that is what the `MatcherListener` shape declares and what RTK reads. To read a field the predicate has proved, narrow with the same predicate inside the effect; never `action.payload as {...}`:
+
 ```typescript
+import { isAction } from "@reduxjs/toolkit";
+import type { UnknownAction } from "@reduxjs/toolkit";
+
+interface FailureAction extends UnknownAction {
+	/** What went wrong, already a message. */
+	payload: { error: string };
+}
+
+function isFailure(action: unknown): action is FailureAction {
+	return isAction(action) && action.type.endsWith("/failure")
+		&& "payload" in action && typeof action.payload === "object" && action.payload !== null
+		&& "error" in action.payload && typeof action.payload.error === "string";
+}
+
 {
-	matcher: (action) => action.type.endsWith("/failure"),
-	effect: async (action, { dispatch }) => {
-		const error = action.payload as { error: string };
-		dispatch(showErrorToast({ message: error.error }));
+	matcher: isFailure,
+	effect: (action, { dispatch }) => {
+		if (!isFailure(action)) return;
+		dispatch(showErrorToast({ message: action.payload.error }));
 	},
 },
 ```
+
+`isAnyOf(a, b, c)` from RTK is already such a predicate, and each creator's `.match` narrows to its own payload inside the effect — see Pattern 10.
 
 ## Pattern 4: Cancel Previous (Search/Debounce)
 
@@ -329,6 +367,192 @@ Key points:
 
 This shape generalises to anything with phases — imports, batch deletes, exports.
 
+## Pattern 9: The Confirm Window
+
+A platform call that a component could make in one line — copy a code to the clipboard, send an SMS — is still an api function run by a listener, because the moment it needs a "Copied ✓" that reverts, the component would also own a timer. The listener shape is always the same five beats: **cancel the previous run → call the api → drop a late outcome → land the outcome → hold the confirmation, then clear it.**
+
+```typescript
+// store/tradein/tradein.listener.ts (excerpt)
+/** How long the "Copied" confirmation shows before reverting, in ms. */
+export const COPY_CONFIRM_MS = 1500;
+
+{
+	actionCreator: codeCopyRequested,
+	effect: async (action, api) => {
+		if (!codeCopyRequested.match(action)) return;
+		api.cancelActiveListeners();                              // a second tap restarts the window
+		const written = await writeToClipboard(action.payload.code);   // store/tradein/api/clipboard.ts
+		if (api.signal.aborted) return;                           // an earlier tap's late outcome: dropped
+		if (!written) {
+			api.dispatch(codeCopyFailed());                       // a refused write shows an error, not a checkmark
+			return;
+		}
+		api.dispatch(codeCopied());
+		await api.delay(COPY_CONFIRM_MS);
+		api.dispatch(codeCopyConfirmationCleared());
+	},
+},
+```
+
+The reducer holds a `copyStatus: "idle" | "copied" | "failed"`; the button renders it. Nothing in the component knows about time. A second tap inside the window cancels the first run's pending clear, so the window restarts instead of being cut short.
+
+## Pattern 10: One Clock Listener Ticks Every Clock
+
+A countdown a component shows is store state — `CheckClock { durationMs, remainingMs, state, run }` on the check — and **one** listener ticks every running clock. Each arming or resumption starts one loop; the loop re-reads the clock before every tick and leaves the moment it is no longer the loop that should be ticking. `run` is the supersession token: a re-arming bumps it, so a loop from an earlier arming sees the mismatch and returns. No timer handles, nothing to clear.
+
+```typescript
+// store/diagnostics/listeners/clock.listener.ts
+import { isAnyOf } from "@reduxjs/toolkit";
+import type { Listener } from "@/store/types";
+import { clockStarted, clockResumed, clockTicked, clockElapsed } from "../diagnostics.actions";
+import { selectClock } from "../diagnostics.selectors";
+import { CLOCK_TICK_MS } from "../types";
+
+export const listener: Listener[] = [
+	{
+		matcher: isAnyOf(clockStarted, clockResumed),
+		effect: async (action, api) => {
+			if (!clockStarted.match(action) && !clockResumed.match(action)) return;
+			const { id } = action.payload;
+			const armed = selectClock(api.getState(), id);
+			if (!armed || armed.state !== "running") return;
+			const { run } = armed;
+
+			for (;;) {
+				await api.delay(CLOCK_TICK_MS);
+				const clock = selectClock(api.getState(), id);
+				if (!clock || clock.run !== run || clock.state !== "running") return;
+				api.dispatch(clockTicked({ id }));
+				if (selectClock(api.getState(), id)?.remainingMs === 0) {
+					api.dispatch(clockElapsed({ id }));
+					return;
+				}
+			}
+		},
+	},
+];
+```
+
+What elapsing *means* is not decided here: the camera listener fails its check on `clockElapsed`, the touchscreen's offers a second chance, the journey listener arms the shared timeout (Pattern 12). The component selects `remainingMs` and draws a ring.
+
+## Pattern 11: The Liveness Key (Attempt + Generation)
+
+A listener run that spans several awaits — open the camera, wait for the picture to settle, read frames until a verdict — may be superseded before any of them resolves: the customer leaves the step (the check is cancelled), re-enters it (a fresh `checkStarted`), or retries (`attempt` moves on). After **every** await the run asks whether it still speaks for the check, and if not it returns — **without releasing shared hardware**, because the live run now owns it.
+
+The key has two parts. `attempt` is store state the reducer bumps on retry. The **cycle** is a module-level per-id counter the listener bumps on every start, because two starts of the same attempt (a re-entry) are indistinguishable in the store:
+
+```typescript
+// store/diagnostics/listeners/damage.listener.ts (excerpt)
+type EffectApi = ListenerEffectAPI<RootState, AppDispatch>;
+
+const cycles = new Map<string, number>();
+function beginCycle(id: string): number {
+	const next = (cycles.get(id) ?? 0) + 1;
+	cycles.set(id, next);
+	return next;
+}
+function currentCycle(id: string): number {
+	return cycles.get(id) ?? 0;
+}
+
+/** What a cycle was started for; the liveness check compares the check against it. */
+interface CycleKey {
+	/** The attempt the cycle runs; a retry moves it on. */
+	attempt: number;
+	/** The cycle's number from `beginCycle`; any later start moves it on. */
+	cycle: number;
+}
+
+/** Whether a cycle still speaks for the check: the check running, no retry has
+ *  moved the attempt on, and no later start has begun a newer cycle. */
+function isLive(api: EffectApi, id: string, key: CycleKey): boolean {
+	if (api.signal.aborted) return false;
+	const check = selectCheck(api.getState(), id);
+	return check?.status === "running" && check.attempt === key.attempt && currentCycle(id) === key.cycle;
+}
+
+async function runCycle(api: EffectApi, id: string, params: DamageCheckParams, key: CycleKey): Promise<void> {
+	const opened = await openCamera(id, constraintsFor(params));
+	if (!isLive(api, id, key)) return;          // stale: the live run owns the camera now
+	if (!opened) {
+		api.dispatch(checkConcluded({ id, verdict: "fail", payload: { reason: "unavailable" } }));
+		return;
+	}
+	// … each further await is followed by the same line
+}
+```
+
+A check with a single await between start and verdict needs only `api.signal.aborted` plus a status read; add the attempt when the check can be retried, and the cycle when it can be re-entered. Never guess at "it has probably finished by now" — read the key.
+
+## Pattern 12: The Watchdog Over Unclocked Time
+
+A journey-wide timeout ("a check that does not answer within N seconds ends on its own") covers exactly the time a check is running **without a clock of its own running** — a camera that will not open, a mirror never found, a standing offer. It is armed at every moment unclocked time may begin or end, and it re-checks the condition after the delay, because the state that armed it may have moved on:
+
+```typescript
+// store/assessment/assessment.listener.ts (excerpt)
+const isSharedTimeoutTrigger = isAnyOf(checkStarted, checkRetried, clockStarted, clockResumed, clockPaused, clockElapsed);
+
+/** Whether a check is running with no clock of its own running. */
+function isUnclocked(check: CheckState | undefined): boolean {
+	return check?.status === "running" && check.clock.state !== "running";
+}
+
+{
+	matcher: isSharedTimeoutTrigger,
+	effect: async (action, api) => {
+		if (!isSharedTimeoutTrigger(action)) return;
+		const { id } = action.payload;
+		if (!isInteractiveCheck(id)) return;
+		api.cancelActiveListeners();                         // one deadline at a time
+		if (!isUnclocked(selectCheck(api.getState(), id))) return;
+
+		await api.delay(resolveJourneyConfig().testTimeoutMs);
+		if (!isUnclocked(selectCheck(api.getState(), id))) return;
+		api.dispatch(checkConcluded({ id, verdict: "timeout" }));
+	},
+},
+```
+
+A retry is a trigger because it idles the clock and starts a fresh attempt: the window is keyed on the attempt, so the retried attempt gets its own rather than what was left of the first one's. The verdict is a first-class `"timeout"`, and no host component draws a sheet over the running check to announce it — every check shows its own clock, and the shared one concludes silently.
+
+## Pattern 13: The Release Backstop
+
+Whatever a check holds — a camera, a key-press emitter, a captured frame — is released when the check ends, *however* it ends. The check's own listener releases on its happy path (the camera must be closed **before** the check concludes, or the next check cannot open it). A second, tiny listener is the backstop for the paths that listener never sees — a skip from the screen, a manual fail, a cancel, a restart. Closing what is already closed is a no-op, so both may run:
+
+```typescript
+// store/diagnostics/listeners/hardwareClose.listener.ts
+import { isAnyOf } from "@reduxjs/toolkit";
+import type { Listener } from "@/store/types";
+import { reassessDevice, restartAssessment } from "@/store/assessment/assessment.actions";
+import { checkCancelled, checkConcluded } from "../diagnostics.actions";
+import { ALL_CHECKS } from "../types";
+import { closeCamera } from "../api/camera";
+import { stopListeningForKeyPresses } from "../api/hid";
+import { releaseCapturedFrame } from "../api/damageVision";
+
+export const listener: Listener[] = [
+	{
+		matcher: isAnyOf(checkCancelled, checkConcluded, restartAssessment, reassessDevice),
+		effect: (action) => {
+			if (checkCancelled.match(action) || checkConcluded.match(action)) {
+				release(action.payload.id);
+				return;
+			}
+			for (const id of ALL_CHECKS) release(id);
+		},
+	},
+];
+
+/** Let go of everything a check might hold. Each release is a no-op for a check that holds nothing. */
+function release(id: string): void {
+	closeCamera(id);
+	stopListeningForKeyPresses(id);
+	releaseCapturedFrame(id);
+}
+```
+
+Register it **ahead of** the listener that moves the cursor, and say why in a comment on the root array: the camera has to be closed before the next step opens its own. This is the one place registration order is load-bearing.
+
 ## Optimistic Updates with Rollback (Error Handling Optional)
 
 For user-initiated entity edits where you want the UI to reflect the new value immediately (before the server answers), Ripe uses a three-case pattern on a single action trio. No separate "optimistic" action.
@@ -545,6 +769,27 @@ function Checkout() {
 		dispatch(submitOrder());
 	}
 }
+```
+
+### Reading a payload with a cast
+```typescript
+// ❌ Wrong — a cast the lint rule (assertionStyle: "never") rejects, and a lie if the matcher widens
+effect: (action) => { const { id } = action.payload as { id: string }; }
+
+// ✅ Correct — the creator's own guard narrows; RTK reads the same predicate
+effect: (action) => {
+	if (!checkStarted.match(action)) return;
+	const { id } = action.payload;
+}
+```
+
+### Letting a stale run release shared hardware
+```typescript
+// ❌ Wrong — the previous attempt's late frame loop closes the camera the current attempt opened
+if (!isLive(api, id, key)) { closeCamera(id); return; }
+
+// ✅ Correct — a stale run just leaves; the live run (or the backstop, Pattern 13) owns the close
+if (!isLive(api, id, key)) return;
 ```
 
 ### What CAN live in a reducer vs what CAN'T

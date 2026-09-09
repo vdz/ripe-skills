@@ -25,18 +25,20 @@ This is the load-bearing skill file. Everything a journey *does* lives here; the
 
 ## What the Brain Is
 
-**The brain is the feature's listeners that own the flow's transitions.** It reacts to the inert intents (`flowNext`, `flowBack`, `flowGoto`), `switch`es on `currentStep`, and delegates each case to a pure decision function in `modules/`. Branching, skipping, "may I leave this step?", and "am I done?" all live here — moving-forward logic dispersed across the feature's listeners and pure modules, placed where a reader would intuitively look, while the engine stays deliberately thin (cardinal rule #1).
+**The brain is the feature's listeners that own the flow's transitions.** It reacts to the inert intents (`flowNext`, `flowBack`, `flowGoto`), `switch`es on `currentStep`, and delegates each case to a pure decision function in `lib/utils/<feature>/`. Branching, skipping, "may I leave this step?", and "am I done?" all live here — moving-forward logic dispersed across the feature's listeners and pure utils, placed where a reader would intuitively look, while the engine stays deliberately thin (cardinal rule #1).
 
 Why a listener and not a declarative transition table: logic lives in listeners (the Ripe tenet), and a transition table would split behaviour between a data graph and code and reintroduce the config-hell the project escapes (ADR-0003). The payoff is greppability — one file per feature tells you how the whole journey moves.
 
 Every effect that reacts to a **shared flow intent** — `flowNext`, `flowBack`, `flowStart`, `flowSetCurrent`, `flowCancel` — guards its own `flowId` first, because those actions fan out to *every* flow's brain:
 
 ```typescript
-const FLOW_ID = troubleshoot.id;
+const FLOW_ID = TROUBLESHOOT_FLOW_ID; // from store/troubleshoot/types.ts
 const isMine = (flowId: string) => flowId === FLOW_ID;
 // … inside every effect that reacts to a shared flow intent:
-if (!isMine(action.payload.flowId)) return;
+if (!flowNext.match(action) || !isMine(action.payload.flowId)) return;
 ```
+
+The effect receives an `UnknownAction` (see the `Listener` union in `building-ripe-store`), so the creator's own `.match` narrows it before the payload is read — no `action.payload as …`. `api.getState()` is already typed to the app's `RootState` through `AppStartListening`; never write `api.getState() as RootState`.
 
 Two kinds of listener guard *differently* — pasting `isMine` there is a bug:
 - **Triggered by a non-flow action.** Route-start (`setLocation`) and retry (`rescan`) carry no `flowId`; they select the flow by its known id instead (see #1 and #5 below).
@@ -60,14 +62,14 @@ Plus a cancel listener when the flow owns a child (below). Not every flow needs 
 
 ## The Routing Brain
 
-The one listener that turns an intent into a move. It reads the latest intake, delegates the decision to `modules/`, and commits the single move — always `flowSetCurrent`.
+The one listener that turns an intent into a move. It reads the latest intake, delegates the decision to a pure function in `lib/utils/<feature>/`, and commits the single move — always `flowSetCurrent`.
 
 ```typescript
 {
 	actionCreator: flowNext,
 	effect: (action, api) => {
-		if (!isMine(action.payload.flowId)) return;
-		const flow = selectFlow(api.getState() as RootState, FLOW_ID);
+		if (!flowNext.match(action) || !isMine(action.payload.flowId)) return;
+		const flow = selectFlow(api.getState(), FLOW_ID);
 		if (!flow) return;
 		const triage = flow.data.triage;
 		const go = (step: string | null) => step && api.dispatch(flowSetCurrent({ flowId: FLOW_ID, step }));
@@ -91,7 +93,7 @@ The one listener that turns an intent into a move. It reads the latest intake, d
 
 Rules that make this readable:
 
-- **The `switch` reads `currentStep`; each case delegates to a pure util.** `routeFromTriage`, `afterSubsystem` are in `modules/troubleshoot.decide.ts` and take plain data, return a step id. No Redux in the decision, so it's unit-testable on its own.
+- **The `switch` reads `currentStep`; each case delegates to a pure util.** `routeFromTriage`, `afterSubsystem` are in `lib/utils/troubleshoot/decide.ts` and take plain data, return a step id. No Redux in the decision, so it's unit-testable on its own.
 - **The one move is always `flowSetCurrent`.** The `go` helper is the only writer. `flowNext` never writes state itself.
 - **`nextStep(flow)` is the linear fallback** — a pure positional helper from the engine. Cases that aren't special fall through to it.
 
@@ -118,8 +120,8 @@ The mechanism is always `flowSetCurrent`. The **trigger** is a feature choice.
 {
 	actionCreator: flowNext,
 	effect: (action, api) => {
-		if (action.payload.flowId !== FLOW_ID) return;
-		const flow = selectFlow(api.getState() as RootState, FLOW_ID);
+		if (!flowNext.match(action) || action.payload.flowId !== FLOW_ID) return;
+		const flow = selectFlow(api.getState(), FLOW_ID);
 		const next = flow ? nextStep(flow) : null;
 		if (next) api.dispatch(flowSetCurrent({ flowId: FLOW_ID, step: next }));
 	},
@@ -128,7 +130,7 @@ The mechanism is always `flowSetCurrent`. The **trigger** is a feature choice.
 
 **Trigger B — a domain event.** `[contract-only]` In `@mcesystems/dtl`, the diagnostics brain does *not* use `flowNext`; a step advances on its own domain action `testDone`, and the brain computes `nextStep(flow)` and commits `flowSetCurrent` (or `flowDone` at the end). The trigger is "the test concluded", not "the user clicked next" — but the mechanism is identical. The brain couples to the step through its *events*, never by reading the verdict back out of state.
 
-> **`[contract-only]` engine-level default advance — legitimate, but keep it this small.** Production `@mcesystems/dtl` adds an engine-level `flows.listener.ts` (`mce-dtl/src/lib/flows/flows.listener.ts:11-22`) that maps `flowNext` → linear advance (`indexOf + 1` → `flowSetCurrent`, else `flowDone`) for *every* flow, so trivially linear flows and gates need no brain at all; VFUK generalizes the same idea into composable brain factories (`makeLinearBrain`/`makeGotoListener`, `mce .../store/flows/flows.brain.ts`). The canonical `ripe-flows` engine ships no listener. **Where advance logic lives is the engineer's call — the engine default is enough only for very simple cases; otherwise the feature's listeners dictate movement.** Whichever a project has, the engine listener must stay this simple — it maps one intent to the sole writer and decides nothing else; resist growing it into the driver.
+> **`[contract-only]` engine-level default advance — legitimate, but keep it this small.** Production `@mcesystems/dtl` adds an engine-level `flows.listener.ts` (`mce-dtl/src/lib/flows/flows.listener.ts:11-22`) that maps `flowNext` → linear advance (`indexOf + 1` → `flowSetCurrent`, else `flowDone`) for *every* flow, so trivially linear flows and gates need no brain at all; VFUK generalizes the same idea into composable brain factories (`makeLinearBrain`/`makeGotoListener`, `mce .../store/flows/flows.brain.ts`). The canonical `ripe-flows` engine ships no listener, and the MCE trade-in app deleted the carried-over generic brain outright: a linear-advance listener no feature calls is dead code, and a `flows.brain.ts` beside the engine is a second decision file (`FLOWS-M-GENERATED-FLOWS`). **Where advance logic lives is the engineer's call — the engine default is enough only for very simple cases; otherwise the feature's listeners dictate movement.** Whichever a project has, the engine listener must stay this simple — it maps one intent to the sole writer and decides nothing else; resist growing it into the driver.
 
 ## Async Intake on Entry
 
@@ -138,8 +140,8 @@ A step that must fetch/probe when entered does it in a **listener**, not a compo
 {
 	matcher: isAnyOf(flowStart, flowSetCurrent),
 	effect: async (action, api) => {
-		if (!isMine(action.payload.flowId)) return;
-		const step = selectCurrentStep(api.getState() as RootState, FLOW_ID);
+		if (!isAnyOf(flowStart, flowSetCurrent)(action) || !isMine(action.payload.flowId)) return;
+		const step = selectCurrentStep(api.getState(), FLOW_ID);
 		if (step === 'connectivity') {
 			api.dispatch(setStepData({ flowId: FLOW_ID, step, patch: { scanning: true } }));
 			const { signal } = await scanConnectivity();
@@ -154,7 +156,7 @@ A step that must fetch/probe when entered does it in a **listener**, not a compo
 },
 ```
 
-- **The probe lives at the service-module boundary** (`modules/troubleshoot.scan.ts`) and is `vi.mock`-ed in tests. Ripe's "logic in listeners" rule exempts service modules — see [building-ripe-store → Service Modules](../building-ripe-store/listeners.md#service-modules--exempt-from-all-logic-in-listeners).
+- **The probe lives in the branch's `api/`** (`store/troubleshoot/api/scanConnectivity.ts`) and is `vi.mock`-ed in tests. It is I/O, so it is an api function called from the listener — see [building-ripe-store → api.md](../building-ripe-store/api.md). A deep implementation behind it (a bridge, a codec) sits in `lib/modules/`.
 - **The component renders a loading screen off `data.scanning` / `data.checking`** — it never awaits.
 - **The entry listener may auto-advance** (the `update` step dispatches `flowNext` when firmware is already current). That's a decision, so it's fine in the brain.
 - **Real async listeners must re-check flow state after every `await`.** `[contract-only]` In VFUK, the battery listener re-checks "status still active? still the current step? verdict not already recorded?" after each await and holds a synchronous in-flight lock, because the recorded-verdict guard alone leaves a pre-await double-dispatch window. For simple probes like the above, re-checking on the next entry is enough; for anything that concludes or advances after an await, add the post-await re-check.
@@ -167,7 +169,7 @@ There is no retry action. To re-run a step's start work, **re-enter the step** �
 {
 	actionCreator: rescan,
 	effect: (_action, api) => {
-		const step = selectCurrentStep(api.getState() as RootState, FLOW_ID);
+		const step = selectCurrentStep(api.getState(), FLOW_ID);
 		// only the async steps have a probe to re-fire; re-entering anything else is a no-op
 		if (step === 'connectivity' || step === 'storage' || step === 'update') {
 			api.dispatch(flowSetCurrent({ flowId: FLOW_ID, step }));
@@ -185,10 +187,10 @@ A sub-flow is a plain second flow — its own definition, brain, and step compon
 ```typescript
 // parent brain: cleanup finished → record freed space, advance past storage
 {
-	matcher: isAnyOf(flowDone),
+	actionCreator: flowDone,
 	effect: (action, api) => {
-		if (action.payload.flowId !== 'cleanup') return;             // filter to the child
-		const child = selectFlow(api.getState() as RootState, 'cleanup');
+		if (!flowDone.match(action) || action.payload.flowId !== 'cleanup') return; // filter to the child
+		const child = selectFlow(api.getState(), 'cleanup');
 		const freedGB = Number(child?.data.cleaning?.freedGB ?? 0);
 		api.dispatch(setStepData({ flowId: FLOW_ID, step: 'storage', patch: { freedGB, cleaned: true } }));
 		api.dispatch(flowNext({ flowId: FLOW_ID }));
@@ -206,8 +208,8 @@ The child needs no R2 — its result lives in its own R1 step data (`child.data.
 {
 	matcher: isAnyOf(flowStart, flowSetCurrent),
 	effect: (action, api) => {
-		if (!isMine(action.payload.flowId)) return;
-		const flow = selectFlow(api.getState() as RootState, FLOW_ID);
+		if (!isAnyOf(flowStart, flowSetCurrent)(action) || !isMine(action.payload.flowId)) return;
+		const flow = selectFlow(api.getState(), FLOW_ID);
 		if (flow?.currentStep !== 'summary') return;
 		api.dispatch(troubleshootConcluded(buildReport(flow.data))); // R2, derived by a pure util
 		api.dispatch(flowDone({ flowId: FLOW_ID }));
@@ -221,8 +223,8 @@ The child needs no R2 — its result lives in its own R1 step data (`child.data.
 {
 	actionCreator: flowCancel,
 	effect: (action, api) => {
-		if (!isMine(action.payload.flowId)) return;
-		const child = selectFlow(api.getState() as RootState, 'cleanup');
+		if (!flowCancel.match(action) || !isMine(action.payload.flowId)) return;
+		const child = selectFlow(api.getState(), 'cleanup');
 		if (child && child.status === 'active') api.dispatch(flowCancel({ flowId: 'cleanup' }));
 	},
 },
@@ -270,7 +272,10 @@ The brain advances on the *event* (`testDone`, `flowDone`, `flowNext`), never by
 An entry listener that appends, increments, or latches breaks on re-entry. Entry effects must be safe to run again — overwrite, don't accumulate. If you need a one-time effect, key it on data you can check idempotently, not on a module-level boolean.
 
 ### Forgetting the ownership guard on a shared intent
-Every effect that reacts to a **shared flow intent** (`flowNext` / `flowBack` / `flowStart` / `flowSetCurrent` / `flowCancel`) starts with `if (!isMine(action.payload.flowId)) return`. Two flows share the same eight actions; without the guard, one flow's `flowNext` fires the other's brain. (Effects triggered by a non-flow action like `rescan`, or filtered to a *child* flow, guard differently — don't paste `isMine` there or you'll break them.)
+Every effect that reacts to a **shared flow intent** (`flowNext` / `flowBack` / `flowStart` / `flowSetCurrent` / `flowCancel`) starts with `if (!<creator>.match(action) || !isMine(action.payload.flowId)) return`. Two flows share the same eight actions; without the guard, one flow's `flowNext` fires the other's brain. (Effects triggered by a non-flow action like `rescan`, or filtered to a *child* flow, guard differently — don't paste `isMine` there or you'll break them.)
+
+### Casting to reach the payload or the state
+`action.payload as FlowPayload` and `api.getState() as RootState` are findings (`STORE-H-CAST`). The creator's `.match` narrows the action; `getState()` is typed through `AppStartListening`. If a cast seems needed, the `Listener` type in `store/types.ts` is the older optional-fields shape — upgrade it to the discriminated union from `building-ripe-store`.
 
 ### Expecting `flowGoto` / `flowBack` to work for free
 Both are inert intents. `flowGoto` has no handler in the reference features — dispatching it is a no-op until you add a brain case. `flowBack` is positional (`prevStep`) only because the brain wires it so.

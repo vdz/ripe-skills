@@ -12,7 +12,7 @@
 ## Contents
 - The host is the composition
 - Step components: self-gating and `(data) → screen`
-- StepProps and portability
+- StepViewProps and portability
 - Mount-once / start-on-activation
 - The two-piece conductor
 - Sub-flows are plain composition
@@ -22,36 +22,59 @@ This file is the flow-specific layer over [building-ripe-components](../building
 
 ## The Host Is the Composition
 
-`<FlowHost flowId>` is a thin, status-aware wrapper that renders its step children. The host *file* lists every step as a named component — that list IS the flow's composition (code-composition-over-config, ADR-0001). There is no separate flow-config file.
+`<FlowHost flowId>` is a thin, status-aware wrapper that renders its step children. The journey *file* lists every step as a named component, each told which step it is — that JSX IS the flow's composition (code-composition-over-config, ADR-0001). There is no separate flow-config file, and no `Record<StepId, () => ReactElement>` registry the host indexes into: a registry is a config table in disguise, and the audit flags it (`COMPONENT-M-RENDER-REGISTRY`).
 
 ```typescript
-// src/components/Troubleshoot/Troubleshoot.tsx
-export function Troubleshoot() {
+// src/components/AssessmentJourney/AssessmentJourney.tsx (MCE trade-in)
+export function AssessmentJourney() {
 	return (
-		<FlowHost flowId="troubleshoot">
-			<ProgressHeader flowId="troubleshoot" />
-			<TriageStep flowId="troubleshoot" />
-			<BatteryStep flowId="troubleshoot" />
-			<ConnectivityStep flowId="troubleshoot" />
-			<StorageStep flowId="troubleshoot" />
-			<UpdateStep flowId="troubleshoot" />
-			<SummaryStep flowId="troubleshoot" />
+		<FlowHost flowId={ASSESSMENT_FLOW_ID}>
+			<LandingStep flowId={ASSESSMENT_FLOW_ID} step={STEP.landing} />
+			<PermissionsStep flowId={ASSESSMENT_FLOW_ID} step={STEP.permissions} />
+			<DtlTestStep flowId={ASSESSMENT_FLOW_ID} step={STEP.touchscreen}>
+				<Touchscreen flowId={ASSESSMENT_FLOW_ID} step={STEP.touchscreen} />
+			</DtlTestStep>
+			<DtlTestStep flowId={ASSESSMENT_FLOW_ID} step={STEP.buttons}>
+				<PhysicalButtons flowId={ASSESSMENT_FLOW_ID} step={STEP.buttons} />
+			</DtlTestStep>
+			{/* … cameraBack, cameraFront, condition, damage, background, offerReview, voucher */}
 		</FlowHost>
 	);
 }
 ```
 
-`FlowHost` itself is trivial — it reflects the flow's status via a className so CSS can style the container per status, and renders its children:
+A step that stages a library screen — an explainer beat, then the check — is a **host that takes its screen as `children`** (`DtlTestStep`) and renders it bare once the step is live. A host that draws its own frame over the screen it wraps is a finding (`COMPONENT-M-RENDER-REGISTRY`, which also covers a host drawn over the screen it wraps).
+
+`FlowHost` itself is trivial — it surfaces the flow's status as a `data-status` attribute so the styled wrapper (and a test) can read it, and renders its children:
 
 ```typescript
 // src/components/FlowHost/FlowHost.tsx
 export function FlowHost({ flowId, children }: FlowHostProps) {
+	// ═══ SETUP ═══
 	const { status } = useFlow(flowId);
-	return <FlowHostWrapper className={status}>{children}</FlowHostWrapper>;
+
+	// ═══ RETURN ═══
+	return <FlowHostWrapper data-status={status}>{children}</FlowHostWrapper>;
 }
 ```
 
-**The host does not iterate, route, or choose a step.** It renders all steps unconditionally; each step decides for itself whether it's visible. Adding a step = add it to the definition's `steps` array + drop its component into the host. The host does not grow logic.
+```typescript
+// src/components/FlowHost/FlowHost.styled.tsx
+/** Step viewport: step screens render absolutely inside it, below the journey chrome. */
+export const FlowHostWrapper = styled.div`
+	position: relative;
+	flex-grow: 1;
+	width: 100%;
+`;
+```
+
+The trade-in wrapper styles nothing by status — the attribute is there for tests and for a host that wants to. When one does, the variant is an attribute selector, never an interpolation:
+
+```typescript
+&[data-status="completed"] { opacity: 0.6; }
+```
+
+**The host does not iterate, route, or choose a step.** It renders all steps unconditionally; each step decides for itself whether it's visible. Adding a step = add it to the flow's `steps` in `flows.reducer.ts` + drop its component into the journey JSX. The host does not grow logic.
 
 ## Step Components: Self-Gating and `(data) → screen`
 
@@ -62,30 +85,31 @@ Two rules define a step component:
 **2. It is a `(step-data) → screen` function.** Within one active step, the component renders whichever *screen* fits the step's data. The engine never models screens; the component does, delegating the choice to a pure util.
 
 ```typescript
-// src/components/Troubleshoot/BatteryStep.tsx
-export function BatteryStep({ flowId }: StepProps) {
+// src/components/BatteryStep/BatteryStep.tsx
+export function BatteryStep({ flowId, step }: StepViewProps) {
 	// ═══ SETUP ═══
-	const { isActive, data, setData, next } = useFlowStep(flowId, 'battery');
+	const { isActive, data, setData } = useFlowStep(flowId, step);
+	const screen = batteryScreen(data);
 
 	// ═══ EARLY EXIT ═══ — self-gate, then pick the screen
 	if (!isActive) return null;
-	if (batteryScreen(data) === 'passed') return <OutcomePanel title="Battery OK ✓" /* … */ />;
-	if (batteryScreen(data) === 'replace') return <OutcomePanel title="Replace the battery" /* … */ />;
+	if (screen === 'passed') return <OutcomePanel title={text.battery.passedTitle} /* … */ />;
+	if (screen === 'replace') return <OutcomePanel title={text.battery.replaceTitle} /* … */ />;
 
 	// ═══ RETURN ═══ — the 'test' screen
 	return (
 		<StepPanel>
-			<StepTitle>Battery diagnostic</StepTitle>
+			<StepTitle>{text.battery.title}</StepTitle>
 			<StepActions>
-				<StepButton className="primary" onClick={() => setData({ ok: true })}>Battery OK</StepButton>
-				<StepButton className="secondary" onClick={() => setData({ ok: false })}>Battery failed</StepButton>
+				<StepButton data-intent="primary" onClick={() => setData({ ok: true })}>{text.battery.ok}</StepButton>
+				<StepButton data-intent="secondary" onClick={() => setData({ ok: false })}>{text.battery.failed}</StepButton>
 			</StepActions>
 		</StepPanel>
 	);
 }
 ```
 
-`batteryScreen(data)` is a pure util in `modules/` (see [creating-a-flow.md → Step 2](creating-a-flow.md#step-2-the-decision-utils--pure-functions-in-modules)) — screen selection is a decision, so it stays out of the JSX and out of the store.
+`batteryScreen(data)` is a pure util in `lib/utils/troubleshoot/` (see [creating-a-flow.md → Step 2](creating-a-flow.md#step-2-the-decision-utils--pure-functions-in-libutilsfeature)) — screen selection is a decision, so it stays out of the JSX and out of the store. Copy is `text.*` from the locale; the button variant is a `data-intent` attribute the styled file selects on (`&[data-intent="primary"]`), never a class string — see [building-ripe-components → styled.md](../building-ripe-components/styled.md#variants-are-data--attributes).
 
 ### The two binding hooks
 
@@ -94,19 +118,27 @@ Every step component uses one of two hooks from the engine:
 - **`useFlow(flowId)`** — the nav view-model + drivers: `{ currentStep, status, stepIndex, total, isFirst, isLast, start, next, back, goTo, cancel }`. Used by the host, the progress header, and the summary.
 - **`useFlowStep(flowId, stepId)`** — step-scoped sugar with `flowId` and `stepId` baked in: `{ isActive, data, setData, next, back }`. `data`/`setData` use the *generic engine bag*; a feature flow with R2 reads its own branch/selectors instead of the generic `data`.
 
-## StepProps and Portability
+## StepViewProps and Portability
 
-A step receives its `flowId` explicitly from the composing host — it does not discover it. The canonical `ripe-flows` shape is a bare `{ flowId }` with the step id baked into the component (`useFlowStep(flowId, 'battery')`):
+A step receives its **identity** — which flow, which step — explicitly from the composing journey; it does not discover either. The default shape is `{ flowId, step }`, declared once in the journey folder and reused by every step:
 
 ```typescript
-// src/components/Troubleshoot/types.ts
-export interface StepProps {
+// src/components/JourneyStep/types.ts
+export interface StepViewProps {
 	/** Identifies the flow instance the step reads and drives. */
 	flowId: string;
+	/** The step this view self-gates on and writes intake under. */
+	step: string;
+}
+
+// a host that stages a library screen takes it as children
+export interface DtlTestStepProps extends StepViewProps {
+	/** The check's own screen, rendered bare once the step is live. */
+	children: ReactNode;
 }
 ```
 
-> **`[contract-only]` portable variant.** `@mcesystems/dtl` passes `StepProps { flowId, step }` so one step component is journey-portable (the same component used at different positions in different journeys). Use the bare `{ flowId }` shape by default; reach for `{ flowId, step }` only when a step component is genuinely shared across journeys.
+Passing `step` is what makes one component journey-portable: the camera check renders at `cameraBack` and `cameraFront` from one file. A step component's props stop at identity — a timeout, a skip flag, a threshold is a **journey parameter**, read by the listener from `config.ts` and written into the store, never threaded through props (`COMPONENT-M-PARAM-PROP`; see [building-ripe-components → Props Are Identity](../building-ripe-components/SKILL.md#props-are-identity-parameters-come-from-configts)). `[contract-only]` The canonical `ripe-flows` demo bakes the step id into each component (`useFlowStep(flowId, 'battery')`) with a bare `{ flowId }` — fine for a one-off demo, but a shared check needs `step`.
 
 ## Mount-Once / Start-on-Activation
 
@@ -142,28 +174,31 @@ A journey's chrome — the progress label, the back button, the re-run control �
 1. **A once-rendered generic header** (`ProgressHeader`) that reads `useFlow` and dispatches the drivers. It shows position and offers back/cancel/re-run:
 
 ```typescript
-// src/components/Troubleshoot/ProgressHeader.tsx
-export function ProgressHeader({ flowId }: StepProps) {
+// src/components/ProgressHeader/ProgressHeader.tsx
+export function ProgressHeader({ flowId }: ProgressHeaderProps) {
 	const { currentStep, stepIndex, total, isFirst, status, back, cancel } = useFlow(flowId);
 	if (!currentStep) return null;
+	const label = progressLabel(status, stepIndex, total, currentStep);
 	return (
 		<Progress>
-			<ProgressLabel>{label()}</ProgressLabel>
-			<span>
-				<BackButton className={isFirst ? 'disabled' : ''} onClick={() => back()}>← Back</BackButton>
-				{status === 'active' && <CancelButton onClick={() => cancel()}>Cancel</CancelButton>}
-			</span>
+			<ProgressLabel>{label}</ProgressLabel>
+			<ProgressActions>
+				<BackButton disabled={isFirst} onClick={() => back()}>{text.progress.back}</BackButton>
+				{status === 'active' && <CancelButton onClick={() => cancel()}>{text.progress.cancel}</CancelButton>}
+			</ProgressActions>
 		</Progress>
 	);
+}
 
-	// ═══ HELPERS ═══
-	function label() {
-		if (status === 'completed') return 'Completed';
-		if (status === 'cancelled') return 'Cancelled';
-		return `Step ${stepIndex + 1} of ${total} · ${currentStep}`;
-	}
+// ═══ HELPERS ═══
+function progressLabel(status: FlowStatus, stepIndex: number, total: number, currentStep: string): string {
+	if (status === 'completed') return text.progress.completed;
+	if (status === 'cancelled') return text.progress.cancelled;
+	return fill(text.progress.stepOf, { current: stepIndex + 1, total, step: currentStep });
 }
 ```
+
+The disabled state is the native `:disabled`, not a `className`; copy is `text.*` with `fill()` for the template.
 
 2. **The per-journey host** listing the named steps (above).
 
@@ -184,7 +219,7 @@ if (cleanupActive) {
 	);
 }
 // … the default screen offers "Clean up", which dispatches flowStart({ flowId: 'cleanup' }):
-<StepButton className="primary" onClick={() => dispatch(flowStart({ flowId: 'cleanup' }))}>Clean up</StepButton>
+<StepButton data-intent="primary" onClick={() => dispatch(flowStart({ flowId: 'cleanup' }))}>{text.storage.cleanUp}</StepButton>
 ```
 
 - **Parent → child:** the parent step dispatches `flowStart({ flowId: 'cleanup' })` and renders `<FlowHost flowId="cleanup">` inline while the child is active (gated on `selectFlowStatus(state, 'cleanup') === 'active'`).

@@ -19,7 +19,7 @@
 
 ## The One Idea: a Gate Is an Ordinary Step
 
-A precondition gate is an **ordinary flow step** declared before the step it guards. Adding a precondition to a journey means adding a gate step to the definition's `steps` array — "the manifest is the composition." No engine change, no new branch, no registry, no gate primitive.
+A precondition gate is an **ordinary flow step** declared before the step it guards. Adding a precondition to a journey means adding a gate step to the flow's `steps` list in `flows.reducer.ts` — "the manifest is the composition." No engine change, no new branch, no registry, no gate primitive.
 
 ```typescript
 // a journey that gates camera-permission before the photo step
@@ -72,7 +72,7 @@ If a missing precondition *should* surface as a result, that is the **brain** de
 - **Doorman** — a permission gate (camera, motion, location). Probes the permission, requests once, blocks on denial.
 - **Switchboard** — a hardware-toggle gate (Bluetooth, Wi-Fi). Probes the toggle's state against its polarity, informs, waits.
 
-Both take the same `StepProps` as any step, live in the same flow, and on satisfied call `next()`. A new kind of gate is a new small wrapper over `runGate`, not a new engine concept.
+Both take the same `StepViewProps { flowId, step }` as any step, live in the same flow, and on satisfied call `next()`. In the MCE trade-in app the permissions gate is `PermissionsStep`: the probe and the request are `api/permissions.ts` functions called from the assessment listener (`permissionsRequested` → `probeJourneyPermissions` / `requestJourneyPermissions` → `permissionsResolved` → `flowNext`), and the component only renders the gate's state and dispatches — the gate machine is listener logic, not a component hook. A new kind of gate is a new small wrapper over `runGate`, not a new engine concept.
 
 > **`[contract-only]` async-onStart caveat.** A gate's `onStart` awaits a real seam (the OS permission API). Register teardown *before* the first `await` and re-check a `torndown` flag after each await — `onCleanup` registration is synchronous, so a cleanup registered after the first await can miss an early deactivation. See [flow-components.md → mount-once](flow-components.md#mount-once--start-on-activation) for the lifecycle rules a gate step shares with every step.
 

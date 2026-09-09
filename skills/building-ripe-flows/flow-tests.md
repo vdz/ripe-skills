@@ -24,40 +24,33 @@ The centre of gravity for a flow is a **behavioural store test**: the flow *beha
 
 ## The Behavioural Store Test — One Harness, Real Listeners
 
-Build a store wired with the *actual* production listeners (the brains) over the real `rootReducer` — the flows are already baked into initial state by `createFlowsReducer`. Mock only the async probe modules at the service boundary. Then drive the flow with real actions and assert on the cursor and the derived state.
+Build a store through `makeTestHarness` with the *actual* production listeners (the brains) — the harness uses the app's reducer map, so the flows are already in the initial state exactly as `flows.reducer.ts` declares them. Mock only the branch's `api/` probes. Then drive the flow with real actions and assert on the cursor and the derived state.
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { configureStore, createListenerMiddleware } from '@reduxjs/toolkit';
-import { rootReducer } from '@/store';
-import type { Listener } from '@/store/types';
+import { makeTestHarness } from '@/store/__tests__/makeTestHarness';
 import { flowStart, flowNext, flowBack, flowCancel, setStepData } from '@/store/flows/flows.actions';
 import { selectCurrentStep, selectFlowStatus, selectFlow } from '@/store/flows/flows.selectors';
+import { TROUBLESHOOT_FLOW_ID } from '../types';
 import { listener as troubleshootListener } from '../troubleshoot.listener';
 import { listener as cleanupListener } from '@/store/cleanup/cleanup.listener';
 
-// mock the probes at the service-module boundary — deterministic, no real timers
-vi.mock('@/modules/troubleshoot.scan', () => ({
-	scanConnectivity: vi.fn(() => Promise.resolve({ signal: 3 })),
-	scanStorage: vi.fn(() => Promise.resolve({ usageGB: 54, capacityGB: 64 })),
-	checkFirmware: vi.fn(() => Promise.resolve({ current: true, version: '0.0.0' })),
-}));
+// mock the probes at the api boundary — deterministic, no real timers
+const probes = vi.hoisted(() => ({ connectivity: vi.fn(), storage: vi.fn(), firmware: vi.fn() }));
+vi.mock('../api/scanConnectivity', () => ({ scanConnectivity: probes.connectivity }));
+vi.mock('../api/scanStorage', () => ({ scanStorage: probes.storage }));
+vi.mock('../api/checkFirmware', () => ({ checkFirmware: probes.firmware }));
 
-const FLOW_ID = 'troubleshoot';
+beforeEach(() => {
+	probes.connectivity.mockReset().mockResolvedValue({ signal: 3 });
+	probes.storage.mockReset().mockResolvedValue({ usageGB: 54, capacityGB: 64 });
+	probes.firmware.mockReset().mockResolvedValue({ current: true, version: '0.0.0' });
+});
 
-function makeStore() {
-	const mw = createListenerMiddleware();
-	const register = (ls: Listener[]) => ls.forEach((l) => {
-		if (l.actionCreator) mw.startListening({ actionCreator: l.actionCreator as never, effect: l.effect as never });
-		else if (l.matcher) mw.startListening({ matcher: l.matcher as never, effect: l.effect as never });
-	});
-	register(troubleshootListener);
-	register(cleanupListener); // both brains — sub-flow resume needs the real chain
-	return configureStore({
-		reducer: rootReducer, // flows already in the reducer's initial state
-		middleware: (getDefault) => getDefault().prepend(mw.middleware),
-	});
-}
+const FLOW_ID = TROUBLESHOOT_FLOW_ID;
+
+// both brains — sub-flow resume needs the real chain
+const makeStore = () => makeTestHarness([...troubleshootListener, ...cleanupListener]).store;
 ```
 
 Assert through the engine's selectors, not by inspecting the middleware:
@@ -68,7 +61,32 @@ const intake = (store: ReturnType<typeof makeStore>, step: string, patch: Record
 	store.dispatch(setStepData({ flowId: FLOW_ID, step, patch }));
 ```
 
-> This `makeStore` mirrors `store/listener.ts` exactly. If a project ships a `makeTestHarness` that already wires the real listeners (`@mcesystems/dtl`'s `src/test/makeStore.ts` does), use it instead of hand-rolling — the [never-hand-roll-a-store rule](../building-ripe-tests/SKILL.md#the-harness) still applies. Hand-roll only when the flow needs a listener subset the harness doesn't offer.
+> The harness registers through the app's own `registerListener`, so a listener behaves in the test exactly as in production — the [never-hand-roll-a-store rule](../building-ripe-tests/SKILL.md#the-harness) applies to flow tests too. A hand-rolled `configureStore` with `l.actionCreator as never` is two findings at once (`TEST-M-HAND-ROLLED-STORE`, `TEST-M-CAST-DOUBLE`). `[contract-only]` `@mcesystems/dtl` ships an older twin, `src/test/makeStore.ts`; an app that carried it over deletes it in favour of `store/__tests__/makeTestHarness.ts`.
+
+## The Step-Order Test
+
+Because the step list is declared literally in `flows.reducer.ts`, its default state **is** the journey contract, and one reducer test pins it (see [building-ripe-tests → reducer-tests.md](../building-ripe-tests/reducer-tests.md)):
+
+```typescript
+it('declares the assessment flow literally: idle, eleven steps in order, no cursor, no data', () => {
+	const state = flowsReducer(undefined, { type: '@@INIT' });
+	expect(state.ids).toEqual(['assessment']);
+	expect(state.byId.assessment).toEqual({
+		status: 'idle',
+		steps: ['landing', 'permissions', 'touchscreen', 'buttons', 'cameraBack', 'cameraFront',
+			'condition', 'damage', 'background', 'offerReview', 'voucher'],
+		currentStep: null,
+		data: {},
+	});
+});
+
+it('every step name the feature branch knows is a step of the flow', () => {
+	const { steps } = flowsReducer(undefined, { type: '@@INIT' }).byId.assessment;
+	for (const step of Object.values(STEP)) expect(steps).toContain(step);
+});
+```
+
+Beside it, `flows.helpers.test.ts` proves the declaration guard: `uniqueSteps(['a', 'b', 'a'])` throws `/"a" is declared twice/`. A reordered, dropped or duplicated step is then a one-line failure, not a journey that silently skips a milestone.
 
 ## The `settle()` Drain Loop
 
@@ -166,4 +184,4 @@ expect(selectReport(store.getState())).toMatchObject({ freedGB: 1.2 });
 
 ## Pure-util Tests
 
-The decision utils in `modules/` are pure functions — test them directly in `modules/__tests__/`, no store, no mocks. This is the cheapest, highest-value coverage: `routeFromTriage`, `afterSubsystem`, `batteryScreen`, `buildReport` each get a small table of input → expected step/screen/report. A branch bug caught here is a one-line failure instead of a whole-journey debug.
+The decision utils in `lib/utils/<feature>/` are pure functions — test them directly in `lib/utils/<feature>/__tests__/`, no store, no mocks. This is the cheapest, highest-value coverage: `routeFromTriage`, `afterSubsystem`, `batteryScreen`, `buildReport` each get a small table of input → expected step/screen/report. A branch bug caught here is a one-line failure instead of a whole-journey debug.

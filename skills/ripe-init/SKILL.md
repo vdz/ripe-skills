@@ -65,8 +65,13 @@ Work through these in order. Mark each as done before moving to the next.
 - [ ] `src/router/routes.tsx` — see app-templates.md
 - [ ] `src/router/router.ts` — see app-templates.md
 
-### Modules
-- [ ] `src/modules/.gitkeep` — empty file, just create it
+### Config & lib
+- [ ] `src/config.ts` — see store-templates.md
+- [ ] `src/lib/utils/.gitkeep` — empty file, just create it
+- [ ] `src/lib/modules/.gitkeep` — empty file, just create it
+
+### Store — test seam
+- [ ] `src/store/__tests__/makeTestHarness.ts` — see building-ripe-tests/SKILL.md → The Harness
 
 ### Context & Progress
 - [ ] `CLAUDE.md` — see claude-md-template.md

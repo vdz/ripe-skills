@@ -13,7 +13,10 @@
 - Status values
 - UI state vs app state
 - What belongs in state vs selectors
+- Read, don't mirror
+- An object with a record inside, never a bare record
 - Default state requirements
+- Resume is `preloadedState`
 - Full branch example
 
 ## Six Rules for State Structure
@@ -183,6 +186,10 @@ Do NOT use `useState` for `modalShow` or `activeTab` — they belong in the `ui`
 - They should be inspectable for debugging
 - They follow the same predictable data flow
 
+The **theme** is `ui` state too — `ui.theme: ThemeName` with a `themeChanged` action — rendered by one selector as a class on the App root (`selectThemeClassName(state) → "theme-<name>"`). No component toggles a class on `<html>`; see `building-ripe-components/styled.md` for how the class reaches the CSS.
+
+And the rule has no "UI-only" escape hatch: **nothing a component shows is component state.** A check's phase (explainer / running), the countdown it draws, the cells the customer has painted, which key has been pressed — each is a field on the branch that owns the check (`progress`, `clock`), written by a listener, selected by the component. If it is on screen, it is in the store.
+
 ## What Belongs in State vs Selectors
 
 **In state:** raw data, fetched from server, user inputs
@@ -206,6 +213,30 @@ export const selectCartItemCount = (state: RootState) =>
 ```
 
 For how to write those selectors — inline vs named, plain function vs memoised — see [selectors.md](selectors.md).
+
+## Read, Don't Mirror
+
+A count or a flag the store already owns is **read**, never copied into a second field or a hook's local counter. A retry control reads `check.attempt`; it does not keep its own `retries`. A "which attempt is this?" label selects the same field. Two writers for one fact is the drift rule 1 exists to prevent, and a mirrored copy is a second writer.
+
+Values that are *computed* from state — "how many checks remain", "is this the last camera step" — are pure helpers in `lib/utils/` or memoised selectors, not fields. The test is the same as rule 4's converse: if a reducer would have to keep it in step with another field on every action, it is derived, and derived means selector.
+
+## An Object With a Record Inside, Never a Bare Record
+
+A branch whose payload is a lookup — checks by id, panels by id — is still an **object** with the record as a named field:
+
+```typescript
+// ✅ store/diagnostics/types.ts
+export interface DiagnosticsState {
+	/** Every check the journey can run, present from the first render with a literal idle default. */
+	checks: Record<CheckId, CheckState>;
+}
+
+// ❌ export type DiagnosticsState = Record<CheckId, CheckState>;
+```
+
+A sibling field can then join without a migration, a selector never has to ask whether a key exists (every id is declared with its default), and the branch reads like every other branch. When the ids are a closed set, declare them as an `as const` map in `types.ts` and derive the union — `INTERACTIVE_CHECK`, `CheckId`, `isCheckId(value)` — so the record is total.
+
+**One bridge between branches.** When a branch keys off another branch's vocabulary (a flow step that *is* a check), exactly one predicate names the bridge — `isInteractiveCheck(stepId): stepId is InteractiveCheck` — and no other code compares the two id spaces. Ordering stays where it is owned (the flow's step list); the lookup branch holds no order of its own.
 
 ## Selectors and Memoisation
 
@@ -235,6 +266,15 @@ const defaultState: UserState = {
 	profile: null,                 // explicitly null
 };
 ```
+
+## Resume Is `preloadedState`
+
+Persisting a session is a listener's job (a `persistenceListener` that watches the actions worth saving and writes a snapshot through `store/persistence/api/storage.ts`). Reading it back is the **boot's** job, once: `makeStore(restoreFrom(await readSavedSession()))`. There is no `sessionRestored` action, no reducer case per branch, no root-reducer wrapper — see [SKILL.md → The Store Root](SKILL.md#the-store-root-reducer-map-rootstate-makestore).
+
+Two consequences for state design:
+
+- **A snapshot is `Partial<RootState>`.** Every branch it omits starts from its reducer's default, so defaults (rule 6) are also the resume contract.
+- **The codec fills in what is never saved.** A running clock, an in-flight status, an open camera do not survive a reload; `restoreFrom` writes their idle defaults (`IDLE_CLOCK`, `status: "idle"`) into the snapshot so the store never starts mid-flight. Export those defaults from the reducer file so the codec and the reducer cannot disagree.
 
 ## Full Branch Example
 

@@ -23,7 +23,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
-import { makeTestHarness, type TestHarness } from '@/test-utils';
+import { makeTestHarness, type TestHarness } from '@/store/__tests__/makeTestHarness';
 import { Toast } from '../Toast';
 
 function renderToast(harness: TestHarness) {
@@ -140,6 +140,40 @@ it('dispatches setSort when the user picks an option', () => {
 
 This is faster than `userEvent.selectOptions` and matches the harness's existing `fireEvent.click` patterns. No need for the `userEvent.setup()` ceremony unless the test also has other interactions.
 
+## Turning a Journey Knob for One Test
+
+A component that reads journey configuration (`resolveJourneyConfig()` from `@/config` — a timeout, the skip flag) is tested at the shipped values by default, with single tests overriding the one knob they exercise. Mock the config module once per file, wrapping the real resolver, and turn knobs through a shared helper:
+
+```typescript
+import { resolveJourneyConfig } from '@/config';
+import { withJourneyConfig } from '@/components/__tests__/journeyConfig.test-utils';
+
+vi.mock('@/config', async (importOriginal) => {
+	const actual = await importOriginal<{ resolveJourneyConfig: typeof resolveJourneyConfig }>();
+	return { ...actual, resolveJourneyConfig: vi.fn(actual.resolveJourneyConfig) };
+});
+
+it('offers the skip only when the journey allows it', () => {
+	withJourneyConfig({ allowTestSkip: true });
+	renderCheck(makeTestHarness());
+	expect(screen.getByRole('button', { name: 'Skip touchscreen test' })).toBeInTheDocument();
+});
+```
+
+```typescript
+// src/components/__tests__/journeyConfig.test-utils.ts
+const shipped = vi.mocked(resolveJourneyConfig).getMockImplementation();
+
+export function withJourneyConfig(overrides: Partial<JourneyConfig>): void {
+	if (!shipped) {
+		throw new Error('mock @/config with resolveJourneyConfig: vi.fn(actual.resolveJourneyConfig) first');
+	}
+	vi.mocked(resolveJourneyConfig).mockImplementation(() => ({ ...shipped(), ...overrides }));
+}
+```
+
+The helper captures the shipped implementation **at load**: with `restoreMocks` on, a restored `vi.fn(impl)` still calls `impl` but `getMockImplementation()` returns `undefined` afterwards, so reading it lazily inside a test would find nothing. Nothing needs undoing per test — the suite restores every mock before the next one.
+
 ## Queries — What to Use When
 
 Order of preference:
@@ -182,21 +216,23 @@ expect(result.current.draftValue).toBe('x');
 expect(screen.getByDisplayValue('x')).toBeInTheDocument();
 ```
 
-### Don't assert on styled-component class names beyond variant markers
+### Don't assert on styled-component class names
 
 ```typescript
 // ❌ Wrong — coupled to implementation
 expect(button.className).toMatch(/styled-class-hash-abc123/);
 
-// ❌ Also wrong — leaks the className API
-expect(button).toHaveClass('primary');     // unless 'primary' is a documented variant marker
+// ❌ Also wrong — there is no className variant API to assert on
+expect(button).toHaveClass('primary');
 
-// ✅ Right — assert behaviour or visible attributes
+// ✅ Right — assert behaviour, visible attributes, or the data-* variant the component declares
 expect(button).toBeDisabled();
 expect(button).toHaveAccessibleName('Save');
+expect(screen.getByTestId('flow-host')).toHaveAttribute('data-status', 'active');
+expect(skip).toHaveAttribute('data-variant', 'link');
 ```
 
-The audit's `TEST-L-IMPLEMENTATION-LEAK` flags imports beyond the component's public API; visual class-name assertions are the JSX equivalent.
+Variants are `data-*` attributes (see [building-ripe-components → styled.md](../building-ripe-components/styled.md#variants-are-data--attributes)), so a variant assertion is an attribute assertion. The audit's `TEST-L-IMPLEMENTATION-LEAK` flags imports beyond the component's public API; class-name assertions are the JSX equivalent.
 
 ### Don't assert on the listener's downstream effect
 
@@ -246,6 +282,12 @@ import { Toast as ToastInternal } from '../Toast/Toast';   // if needed
 ```
 
 ## Worked Examples in the Wild
+
+Real files in the MCE trade-in app (`src/clients/mce/tradein`):
+- `src/components/diagnostics/Touchscreen/__tests__/Touchscreen.test.tsx` — a hardware check driven through
+  the store: the check's listener is registered on the harness, the viewport is fixed, `fireEvent` sweeps
+  the grid cell by cell, and the assertions read the check record (`selectCheck`) and the rendered coverage.
+  Also the `withJourneyConfig` knob for the skip flag.
 
 Real files in `mce-blueprint`:
 - `src/components/Toolbar/__tests__/Toolbar.test.tsx` — canonical shape: a local
