@@ -50,7 +50,8 @@ rg -nE '\buseState\b' src/components
 ```
 **False positives:**
 - Atomic primitives in a shared library. (Currently the project has none — every hit is a finding.)
-**Fix template:** Move the state into the appropriate store branch. Common destinations: `current.editing`, `ui.popovers.<id>`, `ui.expandedRows[id]`.
+- Nothing else. A justifying comment at the site (`REVISIT`, `UI-only`, "hardware loop", "presentation only") does not exempt it: hardware loops run in listeners over `store/<branch>/api/` and write a `progress` record; windows are the check's `clock`; disclosures are `ui.openPanel`. The one hook a screen may keep is a `useRef` + `useEffect` in a DOM-attach atom (a `<video>` taking the open stream), and that atom holds no `useState` either.
+**Fix template:** Move the state into the appropriate store branch. Common destinations: `current.editing`, `ui.popovers.<id>`, `ui.expandedRows[id]`, a check's `progress` / `clock`.
 
 ---
 
