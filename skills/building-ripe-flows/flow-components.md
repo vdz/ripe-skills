@@ -138,7 +138,7 @@ export interface DtlTestStepProps extends StepViewProps {
 }
 ```
 
-Passing `step` is what makes one component journey-portable: the camera check renders at `cameraBack` and `cameraFront` from one file. A step component's props stop at identity — a timeout, a skip flag, a threshold is a **journey parameter**, read by the listener from `config.ts` and written into the store, never threaded through props (`COMPONENT-M-PARAM-PROP`; see [building-ripe-components → Props Are Identity](../building-ripe-components/SKILL.md#props-are-identity-parameters-come-from-configts)). `[contract-only]` The canonical `ripe-flows` demo bakes the step id into each component (`useFlowStep(flowId, 'battery')`) with a bare `{ flowId }` — fine for a one-off demo, but a shared check needs `step`.
+Passing `step` is what makes one component journey-portable: the camera check renders at `cameraBack` and `cameraFront` from one file. A step component's props stop at identity — a timeout, a skip flag, a threshold is a **parameter**, declared on the check's record in the diagnostics reducer's defaults and selected by step id (`selectCameraParams(state, step)`), never threaded through props (`COMPONENT-M-PARAM-PROP`; see [building-ripe-components → Props Are Identity](../building-ripe-components/SKILL.md#props-are-identity-parameters-come-from-the-branchs-defaults)). `[contract-only]` The canonical `ripe-flows` demo bakes the step id into each component (`useFlowStep(flowId, 'battery')`) with a bare `{ flowId }` — fine for a one-off demo, but a shared check needs `step`.
 
 ## Mount-Once / Start-on-Activation
 

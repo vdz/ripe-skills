@@ -142,37 +142,51 @@ This is faster than `userEvent.selectOptions` and matches the harness's existing
 
 ## Turning a Journey Knob for One Test
 
-A component that reads journey configuration (`resolveJourneyConfig()` from `@/config` — a timeout, the skip flag) is tested at the shipped values by default, with single tests overriding the one knob they exercise. Mock the config module once per file, wrapping the real resolver, and turn knobs through a shared helper:
+A component that reads a parameter — a timeout, the skip flag, a check's window — is tested at the shipped values by default, with single tests turning the one knob they exercise. The parameters are the reducer's defaults, so a knob is turned the way the app itself is overridden: a partial state handed to the harness as `preloadedState`. Nothing is mocked; `@/config` is environment and is never mocked for this.
 
 ```typescript
-import { resolveJourneyConfig } from '@/config';
-import { withJourneyConfig } from '@/components/__tests__/journeyConfig.test-utils';
+import { diagnosticsWith, shippedParams } from '@/store/diagnostics/__tests__/diagnostics.test-utils';
 
-vi.mock('@/config', async (importOriginal) => {
-	const actual = await importOriginal<{ resolveJourneyConfig: typeof resolveJourneyConfig }>();
-	return { ...actual, resolveJourneyConfig: vi.fn(actual.resolveJourneyConfig) };
-});
+/** Render the check with the diagnostics branch folded from `actions`, the listener wired. */
+function renderWith(actions: UnknownAction[], { diagnostics = initialState }: RenderOptions = {}): TestHarness {
+	const preloadedState: Partial<RootState> = {
+		flows: flowsAt(STEP),
+		diagnostics: actions.reduce(diagnosticsReducer, diagnostics),
+	};
+	const harness = makeTestHarness(touchscreenListener, { preloadedState });
+	render(<Provider store={harness.store}><Touchscreen flowId={FLOW} step={STEP} /></Provider>);
+	return harness;
+}
 
 it('offers the skip only when the journey allows it', () => {
-	withJourneyConfig({ allowTestSkip: true });
-	renderCheck(makeTestHarness());
-	expect(screen.getByRole('button', { name: 'Skip touchscreen test' })).toBeInTheDocument();
+	renderWith(running(), { diagnostics: diagnosticsWith({ allowTestSkip: true }) });
+	expect(screen.getByRole('button', { name: 'Retry later' })).toBeInTheDocument();
+});
+
+it('freezes the grid when the window closes', () => {
+	const { windowMs } = shippedParams('touchscreen', 'touchscreen');   // assert against the shipped value, never a copy of it
+	renderWith(running(), { diagnostics: diagnosticsWith({ params: { touchscreen: { windowMs: 1_000 } } }) });
+	// …
 });
 ```
 
 ```typescript
-// src/components/__tests__/journeyConfig.test-utils.ts
-const shipped = vi.mocked(resolveJourneyConfig).getMockImplementation();
-
-export function withJourneyConfig(overrides: Partial<JourneyConfig>): void {
-	if (!shipped) {
-		throw new Error('mock @/config with resolveJourneyConfig: vi.fn(actual.resolveJourneyConfig) first');
-	}
-	vi.mocked(resolveJourneyConfig).mockImplementation(() => ({ ...shipped(), ...overrides }));
+// src/store/diagnostics/__tests__/diagnostics.test-utils.ts (shape)
+/** What a test may turn on the diagnostics branch. Everything else stays as shipped. */
+export interface DiagnosticsOverrides {
+	allowTestSkip?: boolean;
+	sharedTimeoutMs?: number;
+	params?: { touchscreen?: Partial<TouchscreenCheckParams>; cameraBack?: Partial<CameraCheckParams>; /* … */ };
 }
+
+/** The diagnostics branch as shipped, with a few knobs turned — `preloadedState.diagnostics`. */
+export function diagnosticsWith(overrides: DiagnosticsOverrides): DiagnosticsState { /* spreads initialState, merges each params record */ }
+
+/** The parameters a check ships with, narrowed to the kind the caller expects; throws on the wrong kind. */
+export function shippedParams<K extends CheckParams['kind']>(id: CheckId, kind: K): Extract<CheckParams, { kind: K }> { /* … */ }
 ```
 
-The helper captures the shipped implementation **at load**: with `restoreMocks` on, a restored `vi.fn(impl)` still calls `impl` but `getMockImplementation()` returns `undefined` afterwards, so reading it lazily inside a test would find nothing. Nothing needs undoing per test — the suite restores every mock before the next one.
+The helper lives under `store/diagnostics/__tests__/` because it is the branch's seam, not the component's: a listener test preloads the same `diagnosticsWith(...)` into `makeTestHarness`. Nothing needs undoing per test — every test builds its own store from its own preloaded state. A `vi.mock('@/config')` in a component test is a smell: the component is reading something that should be on the store.
 
 ## Queries — What to Use When
 
@@ -287,7 +301,7 @@ Real files in the MCE trade-in app (`src/clients/mce/tradein`):
 - `src/components/diagnostics/Touchscreen/__tests__/Touchscreen.test.tsx` — a hardware check driven through
   the store: the check's listener is registered on the harness, the viewport is fixed, `fireEvent` sweeps
   the grid cell by cell, and the assertions read the check record (`selectCheck`) and the rendered coverage.
-  Also the `withJourneyConfig` knob for the skip flag.
+  Also the `diagnosticsWith({ allowTestSkip: true })` preload for the skip flag.
 
 Real files in `mce-blueprint`:
 - `src/components/Toolbar/__tests__/Toolbar.test.tsx` — canonical shape: a local

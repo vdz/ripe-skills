@@ -506,7 +506,7 @@ function isUnclocked(check: CheckState | undefined): boolean {
 		api.cancelActiveListeners();                         // one deadline at a time
 		if (!isUnclocked(selectCheck(api.getState(), id))) return;
 
-		await api.delay(resolveJourneyConfig().testTimeoutMs);
+		await api.delay(selectSharedTimeoutMs(api.getState()));
 		if (!isUnclocked(selectCheck(api.getState(), id))) return;
 		api.dispatch(checkConcluded({ id, verdict: "timeout" }));
 	},

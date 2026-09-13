@@ -235,9 +235,11 @@ project-wide `src/test-utils.ts`.
 
 ## src/config.ts
 
-Bare exported consts, and the **only** module that reads `import.meta.env` — a grep for it has
-exactly one hit (`STORE-M-ENV-OUTSIDE-CONFIG`). Journey parameters (timeouts, feature flags) are
-resolved here and read by listeners, never threaded through component props.
+Environment only: bare exported consts, and the **only** module that reads `import.meta.env` — a
+grep for it has exactly one hit (`STORE-M-ENV-OUTSIDE-CONFIG`). Journey parameters (timeouts, skip
+flags, thresholds) do **not** live here: each branch's reducer declares them in its `initialState`,
+listeners read them through `getState()`, screens select them, and a test or a client overrides them
+through `makeStore(preloadedState)` (`STORE-M-CASE-WRITES-PARAMS` guards the declaration).
 
 ```typescript
 /** True in a Vite dev build. The one place `import.meta.env` is read. */

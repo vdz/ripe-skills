@@ -95,7 +95,7 @@ For any host (a component that stages a check or step), READ its return: does it
 
 ## COMPONENT-M-PARAM-PROP — Journey parameter threaded as a prop
 
-**Rule source:** building-ripe-components/SKILL.md → "Props Are Identity; Parameters Come From `config.ts`"
+**Rule source:** building-ripe-components/SKILL.md → "Props Are Identity; Parameters Come From the Branch's Defaults"
 **Severity:** M
 **Heuristics:**
 ```
@@ -104,7 +104,7 @@ rg -n '<\w+Step\b[^>]*\b(timeout|allowSkip|max)\w*=' src/components
 ```
 **False positives:**
 - A primitive (`SkipControl { offered }`) — it has no identity of its own; its host selects the flag and hands it in.
-**Fix template:** The listener reads the parameter from `config.ts` (`resolveJourneyConfig`, `resolve<Check>Params`) and writes the outcome to the store; the step component receives `{ flowId, step }` and selects.
+**Fix template:** Declare the parameter on the check's record in the diagnostics reducer's `initialState` (or as a branch knob beside `checks`, like `sharedTimeoutMs`/`allowTestSkip`); the listener reads it through `getState()` and writes the outcome to the store; the step component receives `{ flowId, step }` and selects it with `select<Check>Params(state, step)` / `selectAllowTestSkip`.
 
 ---
 

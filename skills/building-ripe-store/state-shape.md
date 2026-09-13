@@ -267,6 +267,29 @@ const defaultState: UserState = {
 };
 ```
 
+**Parameters are defaults too.** Whatever tunes a branch's behaviour — a check's window, its retry ceiling, its grid, the journey's shared timeout and skip flag, a voucher's validity — is declared in the same literal, never in a parallel config module a resolver reads at runtime. The reducer is the declaration of its branch: a reader opens it and sees how a check behaves, in devtools and in a test's `preloadedState` alike, instead of following a resolver into a second file.
+
+```typescript
+// store/diagnostics/diagnostics.reducer.ts (excerpt)
+/** How a check starts: idle, with nothing recorded, tuned by its parameters. */
+function idleCheck(params: CheckParams | null): CheckState {
+	return { status: "idle", verdict: null, payload: null, attempt: 0, clock: IDLE_CLOCK, progress: null, params };
+}
+
+export const initialState: DiagnosticsState = {
+	checks: {
+		touchscreen: idleCheck({ kind: "touchscreen", cellSize: 67, windowMs: 30_000, retryWindowMs: 10_000, maxRetries: 1, /* … */ }),
+		cameraBack: idleCheck({ kind: "camera", cameraSource: "back", testTimeoutMs: 5_000, numberOfObjectsToFind: 3, /* … */ }),
+		battery: idleCheck(null),    // a background check has no parameters
+		// …
+	},
+	sharedTimeoutMs: 20_000,
+	allowTestSkip: false,
+};
+```
+
+`params` is discriminated by `kind` the way `progress` is, so a listener narrows it with the same predicate and a screen selects it (`selectTouchscreenParams(state, step)`). **No case writes it.** Every case that restarts a check goes through `resetCheck(previous)`, which spreads the previous record — `params` included — and sets only the run fields back to idle; a case that assigns `params` or spells a `params:` key outside `initialState` is a finding (`STORE-M-CASE-WRITES-PARAMS`). An override arrives as `makeStore(preloadedState)` — the seam resume already uses — never as an action. The ranges a value must sit inside live in `store/limits.ts`: a reducer test asserts the shipped defaults are inside `LIMITS`, and whatever merges a client override clamps once at that boundary. Nothing on the read path clamps.
+
 ## Resume Is `preloadedState`
 
 Persisting a session is a listener's job (a `persistenceListener` that watches the actions worth saving and writes a snapshot through `store/persistence/api/storage.ts`). Reading it back is the **boot's** job, once: `makeStore(restoreFrom(await readSavedSession()))`. There is no `sessionRestored` action, no reducer case per branch, no root-reducer wrapper — see [SKILL.md → The Store Root](SKILL.md#the-store-root-reducer-map-rootstate-makestore).

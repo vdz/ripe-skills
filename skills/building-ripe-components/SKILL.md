@@ -191,9 +191,17 @@ export class TrustedHtmlSource {
 
 A branded string (`string & { __brand: 'TrustedHtml' }`) can only be constructed through an `as` cast, and client apps forbid `as`. A class is constructed by `new`, narrows by `instanceof`, and cannot be forged from a plain string anywhere in the codebase.
 
-### Props Are Identity; Parameters Come From `config.ts`
+### Props Are Identity; Parameters Come From the Branch's Defaults
 
-A step component receives *who it is* — `{ flowId, step }` — and selects everything else. A timeout, a skip flag, a retry ceiling, a threshold is journey configuration: the listener reads it from `config.ts` (`resolveJourneyConfig`), or the component selects the store state the listener wrote from it. Nothing of that kind is threaded down as a prop, and a gate that applies to the whole journey ("may any check be skipped?") is one journey-config flag, not a per-step prop or a per-check sheet.
+A step component receives *who it is* — `{ flowId, step }` — and selects everything else. A timeout, a skip flag, a retry ceiling, a threshold is a **parameter**, declared on the check's record in the diagnostics reducer's `initialState` (see [building-ripe-store → Default State Requirements](../building-ripe-store/state-shape.md#default-state-requirements)); the screen selects it by its step id, and the listener reads the same record through `api.getState()`. Nothing of that kind is threaded down as a prop, and nothing of that kind lives in `config.ts` — that file is environment only. A gate that applies to the whole journey ("may any check be skipped?") is one flag on the branch (`allowTestSkip`), not a per-step prop or a per-check sheet.
+
+```typescript
+// components/diagnostics/Touchscreen/Touchscreen.tsx (SETUP excerpt)
+const params = useAppSelector((state) => selectTouchscreenParams(state, step));
+const allowTestSkip = useAppSelector(selectAllowTestSkip);
+```
+
+`selectTouchscreenParams(state, step)` narrows the record's `kind`-discriminated `params` and returns `null` when the step is not a touchscreen check, so the component's EARLY EXIT handles the impossible step the same way it handles an inactive one.
 
 Primitives are the exception by design: `SkipControl` takes `offered`, `label`, `variant` because it has no identity of its own — the check that renders it selects the journey's skip flag and hands it in.
 
@@ -508,7 +516,7 @@ const branches = { b1: { result: "Return to Customer", reason: "working, no faul
 - [ ] Variants are `data-*` attributes on the element they style; no `${` in the .styled.tsx; values are `var(--token)` or `var(--_local)`
 - [ ] Copy is `text.*` from the locale — no literal text in the JSX
 - [ ] No useState; no useEffect for data loading (a DOM-attach atom is the one ref + effect)
-- [ ] Journey parameters (timeouts, skip flags) come from config.ts via the store, not props
+- [ ] Journey parameters (timeouts, skip flags) are selected from the branch's defaults (`select<Check>Params(state, step)`, `selectAllowTestSkip`), not props
 - [ ] File is ~100 lines or under (over = a second responsibility crept in — split it out, don't trim)
 - [ ] Tests in __tests__/ subdirectory
 - [ ] Root lint passes (`pnpm run lint` from the repo root, not only the app's) before the commit

@@ -189,7 +189,7 @@ The shapes that make a cast unnecessary:
 - **Browser objects built by their jsdom constructors or as full fakes.** `new MouseEvent('click')`, `new Blob([...])` — or, where jsdom has no implementation (`MediaStream`), a factory that satisfies the DOM interface member by member (`fakeTrack()`, `fakeStream(tracks)` in `components/diagnostics/__tests__/mediaFakes.test-utils.ts`).
 - **A `value is T` guard where the app's own guard exists.** `isCheckId(value)` narrows a string read off a DOM attribute; the test reuses the app's predicate rather than asserting the type.
 - **`Reflect.deleteProperty(navigator, 'clipboard')`** to simulate an absent platform API, instead of `delete (navigator as any).clipboard`.
-- **`vi.mocked(fn).getMockImplementation()`** to read a mock's original back, captured at module load — after the suite's `restoreMocks` the mock still calls the original but no longer reports it (see [component-tests.md → journey configuration](component-tests.md#turning-a-journey-knob-for-one-test)).
+- **A preloaded branch, not a mocked module, to turn a knob.** `diagnosticsWith({ allowTestSkip: true })` hands the harness the branch as shipped with one value changed; `shippedParams(id, kind)` reads a shipped value back for an assertion (see [component-tests.md → Turning a Journey Knob](component-tests.md#turning-a-journey-knob-for-one-test)).
 
 Doubles live in `__tests__/<name>.test-utils.ts` next to the tests that use them; Vitest does not collect `*.test-utils.ts` as a suite.
 

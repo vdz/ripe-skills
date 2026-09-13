@@ -146,6 +146,24 @@ rg -n 'import\.meta\.env|process\.env' src --glob '!src/config.ts' --glob '!**/_
 
 ---
 
+## STORE-M-CASE-WRITES-PARAMS — A reducer case writes a branch's parameters
+
+**Rule source:** building-ripe-store/state-shape.md → "Default State Requirements" ("Parameters are defaults too": a check's `params` and the journey's knobs are declared in `initialState`, overridden only through `makeStore(preloadedState)`, and no case writes them)
+**Severity:** M — it breaks the declaration rule (the reducer stops being the one place a reader learns how a check behaves), not runtime behaviour
+**Heuristics:**
+```
+rg -n '\.params\s*=|\bparams:' src/store --glob '*.reducer.ts'
+rg -n 'sharedTimeoutMs\s*=|allowTestSkip\s*=|validityDays\s*=' src/store --glob '*.reducer.ts'
+```
+Then READ each hit: is it inside the `initialState` literal (or the helper that builds it), or inside an `addCase`/`addMatcher` body? Only the second is a finding. Also flag a `params` module beside the reducer (`*.params.ts`, `*.config.ts`) or a `resolve<X>Params()` function anywhere under `src/` — the parallel config layer the rule deletes.
+**False positives:**
+- `idleCheck(params: CheckParams | null)` — the `initialState` helper's signature, and the literals `initialState` hands it.
+- `resetCheck(previous)` / `{ ...previous, status: "idle", … }` — a reset that spreads the previous record keeps `params` without naming it; a spread is not a write.
+- `check.params?.kind` in a `switch` — a read.
+**Fix template:** Move the value into the record's literal in `initialState` and delete the case. Where a case restarts a check, route it through the reducer's `resetCheck(previous)` the way `checkStarted` does — `{ ...resetCheck(previous), status: "running", attempt: previous.attempt, progress: startingProgress(previous) }` — so `params` is carried by the spread and never assigned. A test that needs a different value preloads `diagnosticsWith({ params: { touchscreen: { windowMs: 1_000 } } })`; a client that needs one merges a partial state before `makeStore` and clamps into `LIMITS` there.
+
+---
+
 ## STORE-H-CAST — `as` type assertion in app code
 
 **Rule source:** building-ripe-store/SKILL.md → "The `Listener` Union" (narrow with `.match`, never `action.payload as`); the repo root `.eslintrc.js` runs `@typescript-eslint/consistent-type-assertions` with `assertionStyle: "never"` and CI lints client apps with it
@@ -164,6 +182,7 @@ rg -n 'as unknown as|as any' src
 
 - Every network/platform call lives in `store/<branch>/api/` and is called from a listener → "OK — api grep clean, N api modules, all callers listeners"
 - `import.meta.env` read in `config.ts` only → "OK — one env reader"
+- No reducer case assigns `params` or a journey knob; no `resolve<X>Params()` anywhere → "OK — parameters declared in `initialState` only"
 - No `as` assertions in `src` → "OK — 0 casts (as const excepted)"
 - All `createAction` payloads have named-field interfaces → "OK — N/N data-bearing actions follow payload-as-interface"
 - All reducers' `if` guards are data-invariant (not business decisions) → "OK — N reducer guards are all invariant-protecting"

@@ -4,7 +4,7 @@
 - Adding a network call, a platform call (camera, clipboard, storage, a native bridge, a permission prompt) or a background read
 - Deciding whether something belongs in `lib/modules/` or in `store/<branch>/api/`
 - Wrapping a piece of hardware that several checks share
-- Reading environment or journey configuration
+- Reading the environment (`config.ts`) — and where journey parameters live instead
 
 ## Contents
 - The rule: every side effect is an api function, called only by a listener
@@ -130,28 +130,27 @@ The listener switches on `result.ok` and dispatches the matching action; the red
 
 ## `config.ts` — the One Reader of `import.meta.env`
 
-Environment *and* journey parameters live in a single `src/config.ts`, as code:
+`src/config.ts` is the app's **environment**: how it meets the platform shell, and whether this is a development build. Nothing about the journey lives here.
 
 ```typescript
 // src/config.ts (excerpt)
+/** What the platform shell is handed to boot this app. */
+export interface AppConfig {
+	/** The platform application identity handed to the shell. */
+	appName: string;
+	/** MCE platform services the EnvironmentInitializer loads. */
+	services: string[];
+	/** Auth connection handed to the shell as `defaultAuthConnection`. */
+	authConnection: string;
+}
+
 /** Whether this is a development build. The only `import.meta.env` read in the app. */
 export const isDevBuild: boolean = import.meta.env.DEV;
 
-export interface JourneyConfig {
-	/** The shared timeout, in ms, over a check's unclocked time. Epic default 20s, range 5–120s. */
-	testTimeoutMs: number;
-	/** Whether the checks offer a skip control: the one flag behind every skip. */
-	allowTestSkip: boolean;
-}
-
-export function resolveJourneyConfig(): JourneyConfig { /* … */ }
-
-/** A check's behavioural parameters, discriminated by `kind`. */
-export type CheckParams = CameraCheckParams | TouchscreenCheckParams | ButtonsCheckParams | DamageCheckParams;
-export function resolveCameraParams(id: string): CameraCheckParams | null { /* … */ }
+/** The shell's boot values — the epic's own. */
+export const config: AppConfig = { appName: "MceTradeIn", services: ["Host", "Auth", /* … */], authConnection: "mce-external" };
 ```
 
 - Bare typed constants, not an object of getters, so a constant is tree-shaken and a grep for `import.meta.env` has exactly one hit.
-- Behavioural parameters reach a listener through `resolveXParams(id)`, never through component props: a check's rules are configuration, and the screen only shows them.
-- Changing a value is a release. A client that needs different values gets its own file beside this one, the same way it gets its own theme and its own strings. A *fetched* configuration domain is a different architecture; do not half-adopt it here.
-- Journey-wide gates (`allowTestSkip`) are journey configuration, read at render with `resolveJourneyConfig()`; a per-check `allowSkip` parameter does not exist.
+- Journey parameters — a check's window, the shared timeout, the skip flag, a voucher's validity — are **not** configuration. Each branch's `initialState` declares them (see [state-shape.md → Default State Requirements](state-shape.md#default-state-requirements)). A listener reads `selectSharedTimeoutMs(api.getState())`; a screen selects `selectTouchscreenParams(state, step)`. There is no per-check resolver function and no journey record here for one to resolve; `config.ts` imports nothing from `store/`.
+- Changing a value is a release. A client that needs different values hands them in as a partial state through the same `makeStore(preloadedState)` a saved session resumes through — a client file, or later a fetched configuration domain — merged in `main.tsx` after `restoreFrom` and clamped into `LIMITS` (`store/limits.ts`) at that one boundary. Do not add a resolver layer in front of the reducers to get there.
