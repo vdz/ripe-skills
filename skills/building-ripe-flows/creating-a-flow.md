@@ -289,6 +289,7 @@ Renovation — converting an existing config-driven wizard into a Ripe flow whil
 - [ ] Every decision the listener makes delegates to a pure util in `lib/utils/<feature>/`; every probe is a `store/<feature>/api/` function
 - [ ] The engine (`store/flows/`) was not edited beyond the flow's `initialState` entry
 - [ ] No feature/reducer code writes `currentStep` except via `flowSetCurrent` (only the engine's `flowStart` reset also sets it)
+- [ ] No component dispatches `flowSetCurrent`, `flowDone`, or a `flowGoto` with a step it picked; a tap that settles state or whose destination the brain must weigh is a domain-named interaction action handled by a step-guarded listener that dispatches `flowNext`
 - [ ] No `as` in the listener: `.match` narrows the action, `getState()` is typed
 - [ ] A reducer exists only if the feature has R2 state (a derived conclusion or domain state)
 - [ ] Each step component takes `{ flowId, step }` and self-gates with `if (!isActive) return null`; the journey JSX lists the steps, no render registry

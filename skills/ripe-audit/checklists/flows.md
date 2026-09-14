@@ -71,17 +71,34 @@ For each entry listener, READ the effect body and ask: "what happens on the seco
 **Heuristics:**
 ```
 rg -nU 'addCase\(\s*(flowNext|flowBack|flowGoto)' src/store --glob '!src/store/flows/**'
-rg -n 'dispatch\(\s*(flowSetCurrent|flowDone)' src/components
+rg -n 'dispatch\(\s*(flowSetCurrent|flowDone|flowGoto)' src/components
 rg -n '(nextStep|stepIndex|steps\[)' src/components
 ```
 - A reducer reacting to a nav intent is deciding a transition → H.
-- A component dispatching `flowSetCurrent`/`flowDone` directly is committing a move the brain should own → H.
+- A component dispatching `flowSetCurrent`/`flowDone` directly is committing a move the brain should own → H. A component dispatching `flowGoto` with a step it picked is naming a destination → H.
 - Step arithmetic (`steps[i + 1]`, `nextStep(...)`) in a component is decision logic in the view → H.
 **False positives:**
-- Components dispatching the *intents* (`next()`/`back()`/`goTo()` from `useFlow`) — that is exactly their job; only committing the move is the violation.
+- Components dispatching the plain *intents* (`next()`/`back()` from `useFlow`/`useFlowStep`) for a linear step with nothing else to settle — only committing or naming the move is the violation. A `flowNext` from a tap that also has state to settle is graded by FLOWS-M-INTERACTION-AS-INTENT, not here.
 - The engine's own `flows.reducer.ts` handling `flowSetCurrent` — excluded by the glob.
 - A brain listener with a small inline `switch (currentStep)` that immediately delegates each case to a `lib/utils/<feature>/` util — canonical. If the branching *computation* itself (multi-condition routing off intake values) sits inline in the listener instead of a pure util, note it as an L (testability), not an H.
-**Fix template:** Move the decision to `src/lib/utils/<feature>/<decision>.ts` (pure, independently testable); the brain calls it and dispatches `flowSetCurrent` with the result. The component goes back to dispatching the inert intent.
+**Fix template:** Move the decision to `src/lib/utils/<feature>/<decision>.ts` (pure, independently testable); the brain calls it and dispatches `flowSetCurrent` with the result. The component goes back to dispatching the inert intent — or, when the tap has state to settle, a domain-named interaction action (FLOWS-M-INTERACTION-AS-INTENT).
+
+---
+
+## FLOWS-M-INTERACTION-AS-INTENT — A tap with consequences dispatched as a bare `flowNext`
+
+**Rule source:** building-ripe-flows/the-brain-listener.md → Trigger A′: when a tap cuts running work short, must record why, or lands somewhere the brain has to weigh, the button dispatches a domain action named for the interaction (`backgroundContinueRequested`, `voucherNextStepsRequested`); a step-guarded listener settles state and dispatches `flowNext`. A bare `flowNext` from such a button leaves the settling to the component, or to nobody.
+**Severity:** M — routing still happens in the brain; what is misplaced is the settling and the vocabulary.
+**Heuristics:**
+```
+rg -n 'dispatch\(\s*flowNext|\bnext\(\)|on(Click|Press)=\{next\}' src/components
+rg -n 'Requested\b' src/store --glob '*.actions.ts'
+```
+For each component hit, READ the handler and the step it lives on. Flag when, around the `flowNext`/`next()`, the component also dispatches other actions (aborting, recording, clearing), or when the step has running work a listener elsewhere would otherwise have to notice was abandoned.
+**False positives:**
+- A linear step's "Next"/"Back" with nothing else in the handler — Trigger A as written.
+- A `*Requested` action whose listener does nothing but `flowNext` — allowed; the name still says what happened, and the guard still drops a stale tap.
+**Fix template:** Add `<step><Verb>Requested` to the feature's actions; the button dispatches only that. In the feature's listener: `if (!isOnStep(api, STEP.<step>)) return;`, settle what the tap cut short (conclude running checks `aborted` with a `reason`), then `api.dispatch(flowNext({ flowId: FLOW_ID }))`. The routing brain is unchanged.
 
 ---
 
@@ -165,6 +182,7 @@ rg -n 'steps:\s*\[' src/store/flows/flows.reducer.ts | rg -v 'uniqueSteps'
 - `currentStep` written only by `flowSetCurrent` + the `flowStart` reset → "OK — sole-writer invariant holds (N assignment sites, all engine-legal)"
 - All entry effects safe to re-run → "OK — N/N entry listeners idempotent (overwrite-or-guard verified)"
 - All transitions decided in brains + pure modules → "OK — no nav-intent reducers, no `flowSetCurrent` from components"
+- Consequential taps named and settled in listeners → "OK — N `*Requested` interactions, each step-guarded; components dispatch `next()` only on plain linear steps"
 - All done-detection via `status` → "OK — N consumers read `selectFlowStatus`, none test `currentStep` presence"
 - Engine listener minimal or absent → "OK — engine ships no listener" / "OK — default-advance listener maps one intent, nothing more"
 - All flow coupling through actions + selectors → "OK — N cross-branch reads all via public selectors; MIRROR-OUT projections write-only"

@@ -43,7 +43,7 @@ flows.reducer.ts initialState     ← each flow declared literally: { status:'id
    (under <FlowHost flowId>)
 ```
 
-The engine never sits between the intent and the move on its own. The intent (`flowNext`) is inert; the brain reads `data[currentStep]`, decides, and commits the one move — always `flowSetCurrent` (or `flowDone`). No feature or reducer code writes `currentStep` except by dispatching `flowSetCurrent`; only the engine's own `flowStart` reset also sets it (to `steps[0]`).
+The engine never sits between the intent and the move on its own. The intent (`flowNext`) is inert; the brain reads `data[currentStep]`, decides, and commits the one move — always `flowSetCurrent` (or `flowDone`). No feature or reducer code writes `currentStep` except by dispatching `flowSetCurrent`; only the engine's own `flowStart` reset also sets it (to `steps[0]`). When a tap has more to say than "next" — it aborts running work, records why, or lands somewhere the brain must weigh — the component dispatches a domain-named interaction action and a step-guarded listener turns it into `flowNext`; the component never names a destination ([the-brain-listener.md → Trigger A′](the-brain-listener.md#the-linear-default-and-the-two-ways-to-advance)).
 
 ## The Eight Engine Actions
 

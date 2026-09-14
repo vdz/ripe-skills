@@ -9,7 +9,7 @@
 
 ## Contents
 - What the brain is
-- The anatomy: the seven listener kinds
+- The anatomy: the eight listener kinds
 - The routing brain: `switch(currentStep)` → pure util → `flowSetCurrent`
 - Guards are `return undefined`
 - The linear default, and the two ways to advance
@@ -44,9 +44,9 @@ Two kinds of listener guard *differently* — pasting `isMine` there is a bug:
 - **Triggered by a non-flow action.** Route-start (`setLocation`) and retry (`rescan`) carry no `flowId`; they select the flow by its known id instead (see #1 and #5 below).
 - **Filtered to a *child* flow.** Sub-flow resume matches the child's `flowDone` with `payload.flowId !== 'cleanup'` — the *opposite* of `isMine` (see #6 below).
 
-## The Anatomy: the Seven Listener Kinds
+## The Anatomy: the Eight Listener Kinds
 
-`troubleshoot.listener.ts` is the reference. A rich brain has up to seven listeners; a linear flow has one or two. Each is a normal entry in the feature's `Listener[]`:
+`troubleshoot.listener.ts` is the reference. A rich brain has up to eight listeners; a linear flow has one or two. Each is a normal entry in the feature's `Listener[]`:
 
 | # | Listener | Trigger | Job |
 |---|---|---|---|
@@ -57,8 +57,9 @@ Two kinds of listener guard *differently* — pasting `isMine` there is a bug:
 | 5 | retry | a feature action (`rescan`) | re-dispatch `flowSetCurrent` to re-fire the entry probe |
 | 6 | sub-flow resume | `isAnyOf(flowDone)` filtered to the child | read the child's result, advance the parent |
 | 7 | conclude | `isAnyOf(flowStart, flowSetCurrent)` on the terminal step | dispatch the R2 conclusion + `flowDone` |
+| 8 | interaction | a domain-named tap (`backgroundContinueRequested`) | guard the step, settle what the tap cut short, then `flowNext` — Trigger A′ below |
 
-Plus a cancel listener when the flow owns a child (below). Not every flow needs all seven; a plain linear wizard is just #1 + a linear #2.
+Plus a cancel listener when the flow owns a child (below). Not every flow needs all eight; a plain linear wizard is just #1 + a linear #2.
 
 ## The Routing Brain
 
@@ -127,6 +128,25 @@ The mechanism is always `flowSetCurrent`. The **trigger** is a feature choice.
 	},
 },
 ```
+
+**Trigger A′ — a named interaction, turned into `flowNext` by a step-guarded listener.** When a tap has more to say than "next" — it cuts running work short, it must record why, or its destination depends on verdicts the brain owns — the button does not dispatch `flowNext` and never names a step. It dispatches a domain action named for what the customer did, and a listener owns the consequences. `[contract-only]` The shape below is the MCE trade-in's `assessment.listener.ts`; `isOnStep`, `selectCheck`, `checkConcluded` and `BACKGROUND_CHECKS` are that app's names, not engine API. The action carries no `flowId`, so the usual `isMine(action.payload.flowId)` guard has nothing to read; the listener guards on the flow's `currentStep` instead:
+
+```typescript
+// The button: dispatch(backgroundContinueRequested()) — no flowId, no step, no opinion.
+{
+	actionCreator: backgroundContinueRequested,
+	effect: (_action, api) => {
+		if (!isOnStep(api, STEP.background)) return;   // a tap that outlived its step is stale
+		for (const id of BACKGROUND_CHECKS) {           // settle what the tap cuts short
+			if (selectCheck(api.getState(), id)?.status !== "running") continue;
+			api.dispatch(checkConcluded({ id, verdict: "aborted", payload: { reason: "customerContinued" } }));
+		}
+		api.dispatch(flowNext({ flowId: FLOW_ID }));    // the routing brain (Trigger A) decides where
+	},
+},
+```
+
+The routing brain still decides — a failed check lands on the offer review, a clean run on the voucher — because the interaction listener only ever asks with `flowNext`. Before this shape, the same button dispatched `flowSetCurrent(voucher)` and skipped the review: the component had a routing opinion, and it was wrong. Name the interaction (`<step><Verb>Requested`), guard the step, settle, then `flowNext`. A plain linear "Next" with nothing to settle may still use `next()` from `useFlowStep` — that is Trigger A as written.
 
 **Trigger B — a domain event.** `[contract-only]` In `@mcesystems/dtl`, the diagnostics brain does *not* use `flowNext`; a step advances on its own domain action `testDone`, and the brain computes `nextStep(flow)` and commits `flowSetCurrent` (or `flowDone` at the end). The trigger is "the test concluded", not "the user clicked next" — but the mechanism is identical. The brain couples to the step through its *events*, never by reading the verdict back out of state.
 

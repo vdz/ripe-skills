@@ -115,8 +115,10 @@ export function BatteryStep({ flowId, step }: StepViewProps) {
 
 Every step component uses one of two hooks from the engine:
 
-- **`useFlow(flowId)`** — the nav view-model + drivers: `{ currentStep, status, stepIndex, total, isFirst, isLast, start, next, back, goTo, cancel }`. Used by the host, the progress header, and the summary.
+- **`useFlow(flowId)`** — the nav view-model + drivers: `{ currentStep, status, stepIndex, total, isFirst, isLast, start, next, back, goTo, cancel }`. Used by the host, the progress header, and the summary. `goTo` is for the conductor's own controls (a progress header re-entering a visited step); a step component never calls it with a destination it picked.
 - **`useFlowStep(flowId, stepId)`** — step-scoped sugar with `flowId` and `stepId` baked in: `{ isActive, data, setData, next, back }`. `data`/`setData` use the *generic engine bag*; a feature flow with R2 reads its own branch/selectors instead of the generic `data`.
+
+`next`/`back` are for a plain linear step with nothing else to do. A button whose tap has consequences beyond moving — work to abort, a reason to record, a destination the brain must weigh — dispatches a domain-named interaction action instead (`backgroundContinueRequested`, `voucherNextStepsRequested`), and a step-guarded listener settles state and dispatches `flowNext` ([the-brain-listener.md → Trigger A′](the-brain-listener.md#the-linear-default-and-the-two-ways-to-advance)). A step component never names a destination: no `flowSetCurrent`, no `flowGoto` with a step it picked.
 
 ## StepViewProps and Portability
 
