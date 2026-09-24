@@ -37,8 +37,8 @@ rg -nU 'useEffect\([^)]+\)\s*=>\s*\{[^}]*dispatch\([^)]*[Ff]etch' src/components
 **Severity:** M
 **Heuristics:**
 ```
-rg -nE 'matchPath\(' src/components
-rg -nE 'useLocation\(\)' src/components | rg -v 'App\.tsx'   # App.tsx is the bridge
+rg -n 'matchPath\(' src/components
+rg -n 'useLocation\(\)' src/components | rg -v 'App\.tsx'   # App.tsx is the bridge
 ```
 **False positives:**
 - `useParams()` for an ID that the component uses purely as a selector key — acceptable (the listener already updated state from the URL by the time the component renders).
@@ -46,19 +46,19 @@ rg -nE 'useLocation\(\)' src/components | rg -v 'App\.tsx'   # App.tsx is the br
 
 ---
 
-## ROUTING-M-LISTENER-ROUTER-IMPORT — A listener imports the router module instead of using `extra.router`
+## ROUTING-M-LISTENER-ROUTER-IMPORT — A listener reaches the router by import instead of `extra.router`
 
 **Rule source:** building-ripe-routing/navigation.md → "Programmatic Navigation from Listeners"; "When the URL Disagrees with the Store"
 **Severity:** M
 **Heuristics:**
 ```
-rg -n "from ['\"]@/router/router['\"]" src/store
+rg -n "from ['\"]@/router/(router|registry)['\"]" src/store
 rg -n 'window\.history\.(push|replace)State' src/store
 ```
-The first flags a listener (or anything under `src/store`) that reaches the router by import — the store → listener → router → routes → screens → store cycle, a prod-bundle TDZ risk. The second flags a listener that moves the address behind the router's back, so the router's own location goes stale.
+The first flags a listener (or anything under `src/store`) that reaches the router by import. `@/router/router` closes the store → listener → router → routes → screens → store cycle, a prod-bundle TDZ risk. `@/router/registry` (a `getRouter()` singleton) dodges the cycle but leaves a global the test harness can't hand in, and it throws when dispatched before registration. The second flags a listener that moves the address behind the router's back, so the router's own location goes stale.
 **False positives:**
 - A hit in a test file under `src/store/**/__tests__/` — a test builds its own router through the harness; review it under the tests checklist instead.
-**Fix template:** Make the router in `main.tsx` with `createAppRouter()`, hand it to `makeStore(router)`, which passes it to `initAppListeners({ router })` → `createListenerMiddleware({ extra })`; type the effect API with `ListenerExtra`. In the listener, `await extra.router.navigate(path)` (`{ replace: true }` for a correction). Delete the import. See [ripe-init → store-templates.md](../../ripe-init/store-templates.md#srcstoretypests) for the wiring.
+**Fix template:** Make the router in `main.tsx` with `createAppRouter()`, hand it to `makeStore(router)`, which passes it to `initAppListeners({ router })` → `createListenerMiddleware({ extra })`; type the effect API with `ListenerExtra`. In the listener, `await extra.router.navigate(path)` (`{ replace: true }` for a correction). Delete the import; for a registry, also delete `registry.ts` and the registration call in `router.ts`. See [ripe-init → store-templates.md](../../ripe-init/store-templates.md#srcstoretypests) for the wiring.
 
 ---
 

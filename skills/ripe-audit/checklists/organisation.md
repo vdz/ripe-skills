@@ -91,7 +91,7 @@ find src -name '*.test.ts' -o -name '*.test.tsx' | rg -v '__tests__'
 **Severity:** L
 **Heuristics:**
 ```
-rg -nE 'export const (Container|Wrapper|Header|Footer|Title|Button|Text|Row|Col|Icon|Modal)\s*=' src/components
+rg -n 'export const (Container|Wrapper|Header|Footer|Title|Button|Text|Row|Col|Icon|Modal)\s*=' src/components
 ```
 Flag generic names; the rule is `[Component][Role]` (e.g. `CartItemRow` not `Row`).
 **Fix template:** Rename to semantic `[Component][Role]` form.

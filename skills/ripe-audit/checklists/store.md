@@ -28,7 +28,7 @@ For each hit, READ the surrounding case. Apply the test:
 **Severity:** H
 **Heuristics:**
 ```
-rg -nE 'createAction<\s*(string|number|boolean)\s*>' src/store
+rg -n 'createAction<\s*(string|number|boolean)\s*>' src/store
 ```
 **False positives:** None.
 **Fix template:** Define `<ActionName>Payload` interface in `types.ts` with a named field. Use it as the generic.
@@ -69,7 +69,7 @@ Then read the payload interface definition; flag if it has a single `boolean` fi
 **Severity:** M
 **Heuristics:**
 ```
-rg -nE 'export const select\w+\s*=\s*\([^)]*state[^)]*\)\s*=>' src/store | rg '(\.map|\.filter|\.slice|\.sort|\.reduce|\{[^}]+:)'
+rg -n 'export const select\w+\s*=\s*\([^)]*state[^)]*\)\s*=>' src/store | rg '(\.map|\.filter|\.slice|\.sort|\.reduce|\{[^}]+:)'
 ```
 For each hit, check whether the selector is wrapped in `createSelector(...)` somewhere above.
 **False positives:**
@@ -107,8 +107,8 @@ success variant. Each legal transition should be its own action, naming what hap
 **Severity:** M
 **Heuristics:**
 ```
-rg -nE 'dispatch\(\w+\(\{[^}]+:\s*\w+\.byId\[' src/store
-rg -nE 'dispatch\(\w+\(\{\s*demo:|product:|order:|user:' src/store src/components
+rg -n 'dispatch\(\w+\(\{[^}]+:\s*\w+\.byId\[' src/store
+rg -n 'dispatch\(\w+\(\{\s*(demo|product|order|user):' src/store src/components
 ```
 **False positives:**
 - A listener that genuinely needs to ship a server-fresh entity payload (e.g. `fetchDemoSuccess({ demo })`) — that's `success` payload, not an identifier dispatch. Flag only dispatches that could pass an ID and let the receiver look up.

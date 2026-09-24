@@ -15,7 +15,7 @@ Each check has:
 **Severity:** H
 **Heuristics:**
 ```
-rg -nE '<(button|input|a)\b[^>]*>' src/components | rg -v 'onClick|onChange|href|disabled='
+rg -n '<(button|input|a)\b[^>]*>' src/components | rg -v 'onClick|onChange|href|disabled='
 ```
 **False positives:**
 - Decorative tags inside e.g. a tooltip primitive — flag only if the tag visually presents as interactive (has `cursor: pointer`, hover state, etc.).
@@ -114,7 +114,7 @@ rg -n '<\w+Step\b[^>]*\b(timeout|allowSkip|max)\w*=' src/components
 **Severity:** M (H if it shadows app-visible state)
 **Heuristics:**
 ```
-rg -nE '\buseState\b' src/components
+rg -n '\buseState\b' src/components
 ```
 **False positives:**
 - Atomic primitives in a shared library. (Currently the project has none — every hit is a finding.)
@@ -136,7 +136,7 @@ rg -nE '\buseState\b' src/components
   Note: props interfaces must live in `types.ts`, not inline in the `.tsx` — see COMPONENT-M-INLINE-TYPE below.
 - Inspect the parent's JSX:
   ```
-  rg -nE '<\w+Card\s+\w+=\{[^}]+\}' src/components
+  rg -n '<\w+Card\s+\w+=\{[^}]+\}' src/components
   ```
 **False positives:**
 - Top-level page components legitimately receive the entity from a selector. The rule is about CHILD components receiving from parents.
@@ -196,7 +196,7 @@ rg -nU 'useEffect\([^)]+\)\s*=>\s*\{[^}]*(fetch|dispatch\(.*[Ff]etch|api\.|await
 **Severity:** L (drive-by fix)
 **Heuristics:**
 ```
-rg -nE '<(div|span|p|h[1-6]|ul|li|section|article|header|footer)\b' src/components
+rg -n '<(div|span|p|h[1-6]|ul|li|section|article|header|footer)\b' src/components
 ```
 **False positives:**
 - `<div>` / `<span>` used intentionally as inert containers per the COMPONENT-H-NO-HANDLER fix.

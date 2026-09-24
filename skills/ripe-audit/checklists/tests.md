@@ -100,7 +100,7 @@ A listener test file should only import the `listener` array from `../<feature>.
 **Severity:** L
 **Heuristic:**
 ```bash
-rg -nE 'toMatchSnapshot|toMatchInlineSnapshot' src
+rg -n 'toMatchSnapshot|toMatchInlineSnapshot' src
 ```
 **False positives:** none. Ripe doesn't snapshot.
 **Fix template:** replace with explicit assertions on the visible state / dispatched actions.
