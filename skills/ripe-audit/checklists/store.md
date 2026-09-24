@@ -171,7 +171,7 @@ rg -n 'import\.meta\.env|process\.env' src --glob '!src/config.ts' --glob '!**/_
 
 ## STORE-M-CASE-WRITES-PARAMS — A reducer case writes a branch's parameters
 
-**Rule source:** building-ripe-store/state-shape.md → "Default State Requirements" ("Parameters are defaults too": a check's `params` and the journey's knobs are declared in `initialState`, overridden only through `makeStore(preloadedState)`, and no case writes them)
+**Rule source:** building-ripe-store/state-shape.md → "Default State Requirements" ("Parameters are defaults too": a check's `params` and the journey's knobs are declared in `initialState`, overridden only through `makeStore`'s `preloadedState`, and no case writes them)
 **Severity:** M — it breaks the declaration rule (the reducer stops being the one place a reader learns how a check behaves), not runtime behaviour
 **Heuristics:**
 ```

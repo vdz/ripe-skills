@@ -288,11 +288,11 @@ export const initialState: DiagnosticsState = {
 };
 ```
 
-`params` is discriminated by `kind` the way `progress` is, so a listener narrows it with the same predicate and a screen selects it (`selectTouchscreenParams(state, step)`). **No case writes it.** Every case that restarts a check goes through `resetCheck(previous)`, which spreads the previous record — `params` included — and sets only the run fields back to idle; a case that assigns `params` or spells a `params:` key outside `initialState` is a finding (`STORE-M-CASE-WRITES-PARAMS`). An override arrives as `makeStore(preloadedState)` — the seam resume already uses — never as an action. The ranges a value must sit inside live in `store/limits.ts`: a reducer test asserts the shipped defaults are inside `LIMITS`, and whatever merges a client override clamps once at that boundary. Nothing on the read path clamps.
+`params` is discriminated by `kind` the way `progress` is, so a listener narrows it with the same predicate and a screen selects it (`selectTouchscreenParams(state, step)`). **No case writes it.** Every case that restarts a check goes through `resetCheck(previous)`, which spreads the previous record — `params` included — and sets only the run fields back to idle; a case that assigns `params` or spells a `params:` key outside `initialState` is a finding (`STORE-M-CASE-WRITES-PARAMS`). An override arrives as `makeStore`'s `preloadedState` — the seam resume already uses — never as an action. The ranges a value must sit inside live in `store/limits.ts`: a reducer test asserts the shipped defaults are inside `LIMITS`, and whatever merges a client override clamps once at that boundary. Nothing on the read path clamps.
 
 ## Resume Is `preloadedState`
 
-Persisting a session is a listener's job (a `persistenceListener` that watches the actions worth saving and writes a snapshot through `store/persistence/api/storage.ts`). Reading it back is the **boot's** job, once: `makeStore(restoreFrom(await readSavedSession()))`. There is no `sessionRestored` action, no reducer case per branch, no root-reducer wrapper — see [SKILL.md → The Store Root](SKILL.md#the-store-root-reducer-map-rootstate-makestore).
+Persisting a session is a listener's job (a `persistenceListener` that watches the actions worth saving and writes a snapshot through `store/persistence/api/storage.ts`). Reading it back is the **boot's** job, once: `makeStore(router, restoreFrom(await readSavedSession()))`. There is no `sessionRestored` action, no reducer case per branch, no root-reducer wrapper — see [SKILL.md → The Store Root](SKILL.md#the-store-root-reducer-map-rootstate-makestore).
 
 Two consequences for state design:
 

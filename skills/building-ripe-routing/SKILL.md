@@ -68,9 +68,9 @@ All routing config lives in `src/router/`:
 
 ```
 src/router/
-├── router.ts         # createBrowserRouter / createHashRouter setup
+├── router.ts         # createAppRouter(): the one router, made in main.tsx before the store
 ├── routes.tsx        # Route tree with named routes
-└── types.ts          # AppRouteObject, route param types
+└── types.ts          # AppRouteObject, AppRouter, route param types
 ```
 
 The router has its own store branch at `store/router/`:
@@ -92,26 +92,29 @@ store/router/
 | Hydrating data for a route on entry | [hydration.md](hydration.md) |
 | Cleaning up state on route exit | [hydration.md](hydration.md#same-idempotency-rule-for-user-left-a-route-listeners) |
 | Navigating programmatically from a listener | [navigation.md](navigation.md) |
+| Correcting a URL the store resolved to another place | [navigation.md](navigation.md#when-the-url-disagrees-with-the-store) |
 | Navigating from a component | [navigation.md](navigation.md#in-component-navigation) |
 
 ## What Belongs Where
 
 | Concern | Where | Example |
 |---------|-------|---------|
-| Router instance | `src/router/router.ts` | `createHashRouter(routes)` |
+| Router instance | `src/router/router.ts`, made in `main.tsx` | `createAppRouter()`, then `makeStore(router)` |
 | Route tree | `src/router/routes.tsx` | Named `AppRouteObject[]` |
 | Location → Redux | `App.tsx` useEffect | `dispatch(setLocation({ location }))` |
 | Route state in store | `store/router/` | Full `Location` object |
 | Data hydration on route | Feature listeners | `matchPath` → `dispatch(fetch...)` |
 | User-initiated navigation | Components | `useNavigate()` |
 | Route params as lookup keys | Components | `useParams()` → `useAppSelector(byId[id])` |
-| Post-logic redirects | Listeners | `router.navigate(...)` via imported router |
+| Post-logic redirects | Listeners | `extra.router.navigate(...)`, the router `makeStore` hands in |
+| URL correction to the resolved place | Listeners | `extra.router.navigate(address, { replace: true })` |
 
 ## Workflow Checklist
 
 ```
 Routing Progress:
 - [ ] Create src/router/ folder with router.ts, routes.tsx, types.ts
+- [ ] main.tsx: `createAppRouter()` before `makeStore(router)`; the store hands it to listeners as `extra`
 - [ ] Define AppRouteObject type with name property
 - [ ] Create route tree in routes.tsx
 - [ ] Create store/router/ branch (actions, reducer, types)
@@ -119,6 +122,7 @@ Routing Progress:
 - [ ] Add setLocation listeners in feature branches for hydration
 - [ ] Verify: components don't fetch data on mount
 - [ ] Verify: useNavigate used for user navigation, not data loading
+- [ ] Verify: listeners navigate through `extra.router`
 - [ ] Verify: every dispatching branch in setLocation listeners has an idempotency guard
 ```
 
@@ -126,7 +130,7 @@ Routing Progress:
 
 | Document | When to read | What's covered |
 |---|---|---|
-| [setup.md](setup.md) | Setting up routing or adding routes | Router instance, route definitions, App.tsx bridge, router store branch |
+| [setup.md](setup.md) | Setting up routing or adding routes | Router factory and boot order, route definitions, App.tsx bridge, router store branch |
 | [hydration.md](hydration.md) | Wiring data hydration to routes | Preemptive hydration via listeners, idempotency rules for entry and exit listeners |
-| [navigation.md](navigation.md) | Navigating programmatically or from components | `router.navigate` from listeners, `useNavigate` + `useParams` in components |
+| [navigation.md](navigation.md) | Navigating programmatically or from components | `extra.router.navigate` from listeners, correcting a URL the store disagrees with, `useNavigate` + `useParams` in components |
 | `building-ripe-store` skill | Listener patterns the routing skill builds on | Pattern 5 (preemptive hydration), Pattern 7 (concurrency), cardinal rule #5 |

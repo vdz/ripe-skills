@@ -7,21 +7,40 @@
 - Building or extending the router store branch
 
 ## Contents
-- Router setup (`router.ts`)
+- Router setup (`router.ts`, `main.tsx`)
 - Route definitions (`routes.tsx` + `types.ts`)
 - The bridge: `App.tsx`
 - Router store branch
 
 ## Router Setup
 
+The router is a factory, called once in `main.tsx` before the store, so the store can hand it to every listener ([navigation.md](navigation.md#programmatic-navigation-from-listeners)):
+
 ```typescript
 // src/router/router.ts
 import { createHashRouter } from "react-router-dom";
 import { routes } from "./routes";
+import type { AppRouter } from "./types";
 
-export const router = createHashRouter(routes); // or createBrowserRouter
-export type Router = typeof router;
+/** The app's router. Made once, in main.tsx, before the store. */
+export function createAppRouter(): AppRouter {
+  return createHashRouter(routes); // or createBrowserRouter(routes, { basename })
+}
 ```
+
+```tsx
+// src/main.tsx
+const router = createAppRouter();
+const store = makeStore(router);
+
+createRoot(container).render(
+  <Provider store={store}>
+    <RouterProvider router={router} />
+  </Provider>,
+);
+```
+
+The router reads the address bar when it is made. Whatever changes the URL before the app renders — a sign-in redirect's return — moves it with `extra.router.navigate(url, { replace: true })` from the listener that owns that step, never with `window.history`, which the router does not see.
 
 ## Route Definitions
 
@@ -29,12 +48,16 @@ Routes use a custom `AppRouteObject` that extends React Router's type with a `na
 
 ```typescript
 // src/router/types.ts
-import type { RouteObject } from "react-router-dom";
+import type { RouteObject, createHashRouter } from "react-router-dom";
 
 export interface AppRouteObject extends Omit<RouteObject, "children"> {
   name: string;
   children?: AppRouteObject[];
 }
+
+/** The app's router: the hash (or browser) one in the app, a memory one in a
+ *  test. All are the same data router, so a listener navigates each the same way. */
+export type AppRouter = ReturnType<typeof createHashRouter>;
 ```
 
 ```typescript

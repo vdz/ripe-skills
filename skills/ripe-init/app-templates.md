@@ -6,15 +6,19 @@ Files in `src/`. Replace `PROJECT_NAME` where noted.
 
 ## src/main.tsx
 
-Entry point. Wraps the app in the Redux Provider and renders the router.
+Entry point. Makes the router, then the store — which hands the router to every listener as
+`extra` — then wraps the app in the Redux Provider and renders the router.
 
 ```tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { RouterProvider } from 'react-router-dom';
-import { store } from '@/store';
-import { router } from '@/router/router';
+import { makeStore } from '@/store';
+import { createAppRouter } from '@/router/router';
+
+const router = createAppRouter();
+const store = makeStore(router);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -84,12 +88,16 @@ export { App } from './App';
 Extends React Router's `RouteObject` with a required `name` field for the application vocabulary.
 
 ```typescript
-import type { RouteObject } from 'react-router-dom';
+import type { RouteObject, createHashRouter } from 'react-router-dom';
 
 export interface AppRouteObject extends RouteObject {
   name: string;
   children?: AppRouteObject[];
 }
+
+/** The app's router: the hash one in the app, a memory one in a test. Both are
+ *  the same data router, so a listener navigates either the same way. */
+export type AppRouter = ReturnType<typeof createHashRouter>;
 ```
 
 ---
@@ -118,9 +126,17 @@ export const routes: AppRouteObject[] = [
 
 ## src/router/router.ts
 
+A factory, called once from `main.tsx`: a module-level router would be made at import time, and a
+listener importing it closes the store → listener → router → routes → screens → store cycle.
+Listeners navigate with the one the store hands them (`extra.router`).
+
 ```typescript
 import { createHashRouter } from 'react-router-dom';
 import { routes } from './routes';
+import type { AppRouter } from './types';
 
-export const router = createHashRouter(routes);
+/** The app's router. Made once, in main.tsx, before the store. */
+export function createAppRouter(): AppRouter {
+  return createHashRouter(routes);
+}
 ```

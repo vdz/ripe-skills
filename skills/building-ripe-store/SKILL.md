@@ -64,7 +64,7 @@ A full Ripe feature is one vertical slice, built in this order. If a spec or int
 
 ```
 store/
-├── store.ts          # the reducer map, RootState, makeStore(preloadedState?) (root)
+├── store.ts          # the reducer map, RootState, makeStore(router, preloadedState?) (root)
 ├── listener.ts       # registerListener + initAppListeners (root)
 ├── types.ts          # Shared types (Listener union, LOADING_STATES)
 ├── index.ts          # Re-exports + typed hooks
@@ -99,7 +99,7 @@ src/
 ├── lib/
 │   ├── utils/      pure helpers: a value in, a value out, no I/O (structured by concern)
 │   └── modules/    deep implementations that talk to the outside world (bridge, codec, mock flags)
-├── main.tsx        makeStore(restoreFrom(await readSavedSession())) → <Provider>
+├── main.tsx        createAppRouter() → makeStore(router, restoreFrom(await readSavedSession())) → <Provider>
 └── store/          as above
 ```
 
@@ -177,10 +177,10 @@ export type Listener = ActionListener | MatcherListener;
 // store/listener.ts (excerpt)
 import { createListenerMiddleware } from "@reduxjs/toolkit";
 import type { TypedStartListening } from "@reduxjs/toolkit";
-import type { Listener } from "./types";
+import type { Listener, ListenerExtra } from "./types";
 import type { RootState, AppDispatch } from "./store";
 
-export type AppStartListening = TypedStartListening<RootState, AppDispatch>;
+export type AppStartListening = TypedStartListening<RootState, AppDispatch, ListenerExtra>;
 
 /** The one path from a `Listener` entry into RTK — the app and the test harness both use it. */
 export function registerListener(startListening: AppStartListening, entry: Listener): void {
@@ -191,9 +191,10 @@ export function registerListener(startListening: AppStartListening, entry: Liste
 	}
 }
 
-export function initAppListeners() {
-	const listenerMiddleware = createListenerMiddleware();
-	const startAppListening = listenerMiddleware.startListening.withTypes<RootState, AppDispatch>();
+/** Every listener is handed `extra` — the app's router, for its redirects. */
+export function initAppListeners(extra: ListenerExtra) {
+	const listenerMiddleware = createListenerMiddleware({ extra });
+	const startAppListening = listenerMiddleware.startListening.withTypes<RootState, AppDispatch, ListenerExtra>();
 	for (const group of listeners) {
 		for (const entry of group) registerListener(startAppListening, entry);
 	}
@@ -213,6 +214,7 @@ export function initAppListeners() {
 // store/store.ts
 import { configureStore } from "@reduxjs/toolkit";
 import type { StateFromReducersMapObject } from "@reduxjs/toolkit";
+import type { AppRouter } from "@/router/types";
 import { initAppListeners } from "./listener";
 import { sessionReducer } from "./session/session.reducer";
 import { flowsReducer } from "./flows/flows.reducer";
@@ -228,16 +230,17 @@ export const reducer = {
 export type RootState = StateFromReducersMapObject<typeof reducer>;
 
 /**
- * A factory, not a module-level constant, because one thing happens before the
- * store exists: the boot reads the saved session and hands it in here. Every
+ * A factory, not a module-level constant, because two things exist before the
+ * store does: the router, handed to every listener as `extra` for its
+ * redirects, and the saved session the boot reads and hands in here. Every
  * branch the snapshot does not mention starts from the default its reducer
  * declares. There is no restore action and no reducer wrapper.
  */
-export function makeStore(preloadedState?: Partial<RootState>) {
+export function makeStore(router: AppRouter, preloadedState?: Partial<RootState>) {
 	return configureStore({
 		reducer,
 		preloadedState,
-		middleware: (getDefaultMiddleware) => getDefaultMiddleware().prepend(initAppListeners().middleware),
+		middleware: (getDefaultMiddleware) => getDefaultMiddleware().prepend(initAppListeners({ router }).middleware),
 	});
 }
 
@@ -246,8 +249,9 @@ export type AppDispatch = AppStore["dispatch"];
 ```
 
 ```typescript
-// main.tsx (excerpt) — resume is preloadedState, nothing else
-const store = makeStore(restoreFrom(await readSavedSession()));
+// main.tsx (excerpt) — the router first; resume is preloadedState, nothing else
+const router = createAppRouter();
+const store = makeStore(router, restoreFrom(await readSavedSession()));
 store.dispatch(bootstrapRequested());
 ```
 

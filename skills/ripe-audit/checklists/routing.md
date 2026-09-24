@@ -46,6 +46,22 @@ rg -nE 'useLocation\(\)' src/components | rg -v 'App\.tsx'   # App.tsx is the br
 
 ---
 
+## ROUTING-M-LISTENER-ROUTER-IMPORT — A listener imports the router module instead of using `extra.router`
+
+**Rule source:** building-ripe-routing/navigation.md → "Programmatic Navigation from Listeners"; "When the URL Disagrees with the Store"
+**Severity:** M
+**Heuristics:**
+```
+rg -n "from ['\"]@/router/router['\"]" src/store
+rg -n 'window\.history\.(push|replace)State' src/store
+```
+The first flags a listener (or anything under `src/store`) that reaches the router by import — the store → listener → router → routes → screens → store cycle, a prod-bundle TDZ risk. The second flags a listener that moves the address behind the router's back, so the router's own location goes stale.
+**False positives:**
+- A hit in a test file under `src/store/**/__tests__/` — a test builds its own router through the harness; review it under the tests checklist instead.
+**Fix template:** Make the router in `main.tsx` with `createAppRouter()`, hand it to `makeStore(router)`, which passes it to `initAppListeners({ router })` → `createListenerMiddleware({ extra })`; type the effect API with `ListenerExtra`. In the listener, `await extra.router.navigate(path)` (`{ replace: true }` for a correction). Delete the import. See [ripe-init → store-templates.md](../../ripe-init/store-templates.md#srcstoretypests) for the wiring.
+
+---
+
 ## ROUTING-L-CENTRAL-ORCHESTRATOR — A listener that orchestrates other listeners
 
 **Rule source:** building-ripe-store/listeners.md → "Pattern 7: Listener Concurrency" ("You do not need: a 'central orchestrator' listener")
@@ -64,3 +80,4 @@ rg -nE 'useLocation\(\)' src/components | rg -v 'App\.tsx'   # App.tsx is the br
 - All `setLocation` listener branches have idempotency guards → "OK — N/N setLocation dispatch branches guarded"
 - All components read state, not URL (except App.tsx bridge) → "OK — no URL-derived rendering"
 - All hydration via listeners, not component `useEffect` → "OK — components are passive projections"
+- Every listener navigates through `extra.router` → "OK — no router import under src/store"

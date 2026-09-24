@@ -14,6 +14,7 @@ It must be here from the start: the first branch you add imports it, and
 
 ```typescript
 import type { ListenerEffectAPI, UnknownAction } from '@reduxjs/toolkit';
+import type { AppRouter } from '@/router/types';
 import type { RootState, AppDispatch } from './store';
 
 export const LOADING_STATES = {
@@ -41,12 +42,21 @@ type AnyActionCreator = { type: string; match: (action: unknown) => action is Un
   ...args: any[]
 ) => UnknownAction);
 
+/** What every listener is handed beyond the store: the app's router, for the
+ *  redirects that follow a listener's own logic. Handed in when the store is
+ *  made, so a listener never waits on a component to supply it. */
+export interface ListenerExtra {
+  /** The router the app renders. `router.navigate(...)` moves the address. */
+  router: AppRouter;
+}
+
 /** The side effect a listener runs. Receives the matched action and the
- *  listener API (dispatch, getState, delay, cancelActiveListeners…), typed to
- *  this app's store so no effect has to widen or narrow what it is handed. */
+ *  listener API (dispatch, getState, delay, cancelActiveListeners…, and
+ *  `extra.router`), typed to this app's store so no effect has to widen or
+ *  narrow what it is handed. */
 export type ListenerEffect = (
   action: UnknownAction,
-  listenerApi: ListenerEffectAPI<RootState, AppDispatch>,
+  listenerApi: ListenerEffectAPI<RootState, AppDispatch, ListenerExtra>,
 ) => void | Promise<void>;
 
 /** A listener that fires on one action creator. */
@@ -75,10 +85,16 @@ export interface MatcherListener {
 export type Listener = ActionListener | MatcherListener;
 ```
 
-Three things to keep as-is:
+Four things to keep as-is:
 
 The `RootState`/`AppDispatch` import from `./store` is type-only, so the apparent cycle with
-`store.ts` is erased at compile time.
+`store.ts` is erased at compile time. The `AppRouter` import is type-only too, so the store never
+loads the router module at runtime.
+
+`ListenerExtra` carries the router as a dependency, never as state: the router is a live object, and
+`state.router` holds only the location `setLocation` mirrors. Listeners navigate with
+`extra.router.navigate(...)` — see
+[building-ripe-routing → navigation.md](../building-ripe-routing/navigation.md#programmatic-navigation-from-listeners).
 
 `Listener` is a **discriminated union**, not an interface with two optional fields. The optional
 form needs runtime `throw`s for "neither" and "both" and a cast to reach RTK's overloads; the union
@@ -96,7 +112,7 @@ then needs a cast at registration.
 
 ## src/store/listener.ts
 
-Registers every branch's listeners on a fresh listener middleware via `initAppListeners()`
+Registers every branch's listeners on a fresh listener middleware via `initAppListeners(extra)`
 — the registration pass `building-ripe-store` refers to. `listeners` starts empty — each
 new branch appends its array, which is how a branch becomes live.
 
@@ -104,15 +120,15 @@ new branch appends its array, which is how a branch becomes live.
 import { createListenerMiddleware } from '@reduxjs/toolkit';
 import type { TypedStartListening } from '@reduxjs/toolkit';
 import type { RootState, AppDispatch } from './store';
-import type { Listener } from './types';
+import type { Listener, ListenerExtra } from './types';
 
 // One array per store branch that owns listeners. A branch is not live until its
 // listener array appears here AND its reducer appears in store.ts.
 // Order matters once: when listener A must run before listener B on the same action, say why here.
 const listeners: Listener[][] = [];
 
-/** `startListening` bound to this app's state and dispatch. */
-export type AppStartListening = TypedStartListening<RootState, AppDispatch>;
+/** `startListening` bound to this app's state, dispatch and listener extra. */
+export type AppStartListening = TypedStartListening<RootState, AppDispatch, ListenerExtra>;
 
 /** Register one entry. RTK's `startListening` is overloaded per trigger shape
  *  (`actionCreator` or `matcher`), so the union is narrowed here and each shape
@@ -126,12 +142,13 @@ export function registerListener(startListening: AppStartListening, entry: Liste
   }
 }
 
-/** Registers every branch's `Listener[]` with a fresh RTK listener middleware
- *  and returns it for `configureStore`. Fresh per call, so each store built by
- *  `makeStore` gets its own registrations rather than a shared, growing set. */
-export function initAppListeners() {
-  const listenerMiddleware = createListenerMiddleware();
-  const startAppListening = listenerMiddleware.startListening.withTypes<RootState, AppDispatch>();
+/** Registers every branch's `Listener[]` with a fresh RTK listener middleware,
+ *  each handed `extra`, and returns it for `configureStore`. Fresh per call, so
+ *  each store built by `makeStore` gets its own registrations rather than a
+ *  shared, growing set. */
+export function initAppListeners(extra: ListenerExtra) {
+  const listenerMiddleware = createListenerMiddleware({ extra });
+  const startAppListening = listenerMiddleware.startListening.withTypes<RootState, AppDispatch, ListenerExtra>();
 
   for (const group of listeners) {
     for (const entry of group) {
@@ -142,7 +159,7 @@ export function initAppListeners() {
 }
 ```
 
-`initAppListeners()` is called by `makeStore` (below), not at module load: the middleware is
+`initAppListeners(extra)` is called by `makeStore` (below), not at module load: the middleware is
 created per store, so a second store (a test, a hot reload) does not inherit the first store's
 registrations. Nothing else calls it.
 
@@ -159,13 +176,14 @@ halves: the MCE trade-in app's `src/store/listener.ts` and `src/store/__tests__/
 ## src/store/store.ts
 
 Configures the store. Imports all branch reducers directly into one **reducer map**, exported for
-the test harness. `makeStore` is a factory so the boot can hand in a saved snapshot as
-`preloadedState` — every branch the snapshot lacks starts from its reducer's own default. No
-restore action, no root-reducer wrapper.
+the test harness. `makeStore` is a factory so the boot can hand in the app's router — passed to
+every listener as `extra` — and a saved snapshot as `preloadedState`, where every branch the
+snapshot lacks starts from its reducer's own default. No restore action, no root-reducer wrapper.
 
 ```typescript
 import { configureStore } from '@reduxjs/toolkit';
 import type { StateFromReducersMapObject } from '@reduxjs/toolkit';
+import type { AppRouter } from '@/router/types';
 import { initAppListeners } from './listener';
 import { appReducer } from './app/app.reducer';
 import { routerReducer } from './router/router.reducer';
@@ -181,13 +199,14 @@ export const reducer = {
  *  part of it before any store exists. */
 export type RootState = StateFromReducersMapObject<typeof reducer>;
 
-/** Build the app's store. Called once, from `main.tsx`. */
-export function makeStore(preloadedState?: Partial<RootState>) {
+/** Build the app's store. `router` is the one the app renders, handed to every
+ *  listener for its redirects. Called once, from `main.tsx`. */
+export function makeStore(router: AppRouter, preloadedState?: Partial<RootState>) {
   return configureStore({
     reducer,
     preloadedState,
     middleware: (getDefaultMiddleware) =>
-      getDefaultMiddleware().prepend(initAppListeners().middleware),
+      getDefaultMiddleware().prepend(initAppListeners({ router }).middleware),
   });
 }
 
@@ -195,9 +214,10 @@ export type AppStore = ReturnType<typeof makeStore>;
 export type AppDispatch = AppStore['dispatch'];
 ```
 
-`main.tsx` calls `makeStore()` once (with the saved snapshot, if the app persists one) and hands
-the result to `<Provider>`. There is no module-level `store` constant: a singleton would be created
-at import time by whichever module imported it first, including a test.
+`main.tsx` makes the router, calls `makeStore(router)` once (with the saved snapshot as the second
+argument, if the app persists one) and hands the result to `<Provider>`. There is no module-level
+`store` constant: a singleton would be created at import time by whichever module imported it
+first, including a test.
 
 ---
 
@@ -239,7 +259,7 @@ Environment only: bare exported consts, and the **only** module that reads `impo
 grep for it has exactly one hit (`STORE-M-ENV-OUTSIDE-CONFIG`). Journey parameters (timeouts, skip
 flags, thresholds) do **not** live here: each branch's reducer declares them in its `initialState`,
 listeners read them through `getState()`, screens select them, and a test or a client overrides them
-through `makeStore(preloadedState)` (`STORE-M-CASE-WRITES-PARAMS` guards the declaration).
+through `makeStore(router, preloadedState)` (`STORE-M-CASE-WRITES-PARAMS` guards the declaration).
 
 ```typescript
 /** True in a Vite dev build. The one place `import.meta.env` is read. */

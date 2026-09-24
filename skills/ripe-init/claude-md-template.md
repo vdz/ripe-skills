@@ -57,7 +57,7 @@ src/
 │   ├── utils/         # Pure helpers called from listeners (no Redux)
 │   └── modules/       # Deep implementations fronted by a store/<branch>/api/ function
 ├── store/
-│   ├── store.ts       # reducer map + makeStore(preloadedState?)
+│   ├── store.ts       # reducer map + makeStore(router, preloadedState?)
 │   ├── listener.ts    # registerListener + initAppListeners
 │   ├── types.ts       # Shared types (Listener union, LoadingState)
 │   ├── __tests__/     # makeTestHarness — the one test seam
@@ -67,10 +67,10 @@ src/
 │   ├── App/           # Root component with setLocation bridge
 │   └── GlobalStyle/   # Reset + base layers; imports tokens.css
 ├── routes/
-│   ├── router.ts      # createHashRouter setup
+│   ├── router.ts      # createAppRouter() — made in main.tsx, handed to listeners
 │   ├── routes.tsx      # Route tree
 │   └── types.ts       # AppRouteObject
-└── main.tsx           # Entry point — makeStore() once
+└── main.tsx           # Entry point — createAppRouter(), then makeStore(router) once
 ```
 
 ## Skills to Follow

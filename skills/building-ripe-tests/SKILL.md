@@ -16,7 +16,7 @@ Imports use `../<file>` to reach the parent. Enforced by `ripe-audit/checklists/
 `expect(state.x).toEqual(...)` — never `expect(action.type).toBe(...)`. The reducer's contract is the resulting state. Action shape is the action creator's concern (and TypeScript already proves it). See [reducer-tests.md](reducer-tests.md).
 
 **3. Listener tests dispatch and observe — no listener internals.**
-Dispatch an action into a `makeTestHarness`, wait for the effect to settle (`vi.waitFor` for async, `vi.advanceTimersByTimeAsync` for debounced), assert on `harness.dispatched` or `harness.store.getState()`. Never import an internal helper out of `<feature>.listener.ts`. See [listener-tests.md](listener-tests.md).
+Dispatch an action into a `makeTestHarness`, wait for the effect to settle (`vi.waitFor` for async, `vi.advanceTimersByTimeAsync` for debounced), assert on `harness.dispatched`, `harness.store.getState()` or — for a redirect — `harness.router.state.location`. Never import an internal helper out of `<feature>.listener.ts`. See [listener-tests.md](listener-tests.md).
 
 **4. Component tests assert behaviour, not implementation.**
 Render with the real harness store wrapped in `<Provider>`. Assert what the user sees (`screen.getByText`) and what the component dispatches (`harness.dispatched.find(...)`). Never assert on hook return values, internal component state, or styled-component class names beyond variant markers. See [component-tests.md](component-tests.md).
@@ -30,13 +30,16 @@ A listener test file has `describe('hydration on setLocation')`, `describe('erro
 - The **app's own reducer map** (`import { reducer } from '@/store/store'`), so a test sees exactly the app's shape and the app's defaults. A harness with a hand-built reducer drifts from the app, and a test against a drifted harness proves nothing.
 - A listener middleware with only the listeners under test registered — through the app's own `registerListener`, so a test registers a listener exactly the way production does.
 - A logging middleware that records every dispatched action (`harness.dispatched`), including listener-initiated follow-ups.
+- A router handed to every listener as `extra.router`, the way `makeStore` hands in the app's: a memory router at `/` by default (`makeTestRouter()`), or `options.router`. `harness.router` is that same router, so a test reads where a listener sent it.
 - An optional `preloadedState`, the way the boot hands a saved session to `makeStore`. Branches left out keep their reducer defaults.
 
 ```typescript
 // src/store/__tests__/makeTestHarness.ts
 import { configureStore, createListenerMiddleware, isAction } from '@reduxjs/toolkit';
 import type { EnhancedStore, Middleware, UnknownAction } from '@reduxjs/toolkit';
-import type { Listener } from '@/store/types';
+import { createMemoryRouter } from 'react-router-dom';
+import type { AppRouter } from '@/router/types';
+import type { Listener, ListenerExtra } from '@/store/types';
 import { reducer } from '@/store/store';
 import type { RootState, AppDispatch } from '@/store/store';
 import { registerListener } from '@/store/listener';
@@ -46,16 +49,28 @@ export interface TestHarness {
 	store: EnhancedStore<RootState>;
 	/** Every action that has flowed through the middleware chain. */
 	dispatched: UnknownAction[];
+	/** The router the listeners navigate, for a test to read where they sent it. */
+	router: AppRouter;
 }
 
 export interface TestHarnessOptions {
 	/** State to start from. Branches left out keep their reducer defaults. */
 	preloadedState?: Partial<RootState>;
+	/** The router the listeners are handed. Defaults to `makeTestRouter()`. */
+	router?: AppRouter;
+}
+
+/** A memory router at `/` with one catch-all route and no screens: enough for
+ *  a listener to navigate, and for the test to read where it went. */
+export function makeTestRouter(): AppRouter {
+	return createMemoryRouter([{ path: '*' }]);
 }
 
 export function makeTestHarness(listeners: Listener[] = [], options: TestHarnessOptions = {}): TestHarness {
-	const listenerMiddleware = createListenerMiddleware();
-	const startListening = listenerMiddleware.startListening.withTypes<RootState, AppDispatch>();
+	const router = options.router ?? makeTestRouter();
+	const extra: ListenerExtra = { router };
+	const listenerMiddleware = createListenerMiddleware({ extra });
+	const startListening = listenerMiddleware.startListening.withTypes<RootState, AppDispatch, ListenerExtra>();
 	for (const entry of listeners) {
 		registerListener(startListening, entry);
 	}
@@ -73,7 +88,7 @@ export function makeTestHarness(listeners: Listener[] = [], options: TestHarness
 		preloadedState: options.preloadedState,
 		middleware: (getDefaultMiddleware) => getDefaultMiddleware().prepend(listenerMiddleware.middleware, loggingMiddleware),
 	});
-	return { store, dispatched };
+	return { store, dispatched, router };
 }
 
 /** Convenience: pluck just the action types from a dispatched list. */
@@ -197,7 +212,7 @@ Doubles live in `__tests__/<name>.test-utils.ts` next to the tests that use them
 
 Testing is a black hole. Naming refusals upfront keeps the skill narrow.
 
-- **Mocking philosophy / dependency-injection theory.** Ripe mocks at the service-module boundary (`window.mce`, `localStorage`, the router module). Beyond that, no opinions.
+- **Mocking philosophy / dependency-injection theory.** Ripe mocks at the service-module boundary (`window.mce`, `localStorage`); the router is a real memory router the harness hands in. Beyond that, no opinions.
 - **Snapshot tests.** Ripe doesn't snapshot. They drift and review noisily.
 - **End-to-end / browser tests.** Out of scope. If a project wants e2e, that's a different skill.
 - **Coverage thresholds.** Coverage as feedback yes; coverage as gate no.

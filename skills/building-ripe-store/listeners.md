@@ -52,7 +52,7 @@ export const listener: Listener[] = [
 ];
 ```
 
-All listener arrays are registered centrally in `store/listener.ts`: `initAppListeners()` walks them and hands each entry to `registerListener(startListening, entry)` — the same function the test harness uses, so a listener runs identically in the app and under test. `Listener` is the discriminated union from `store/types.ts` (see [SKILL.md → The `Listener` Union](SKILL.md#the-listener-union)); an entry is either `{ actionCreator, effect }` or `{ matcher, effect }`, never both, never neither.
+All listener arrays are registered centrally in `store/listener.ts`: `initAppListeners(extra)` walks them and hands each entry to `registerListener(startListening, entry)` — the same function the test harness uses, so a listener runs identically in the app and under test. `Listener` is the discriminated union from `store/types.ts` (see [SKILL.md → The `Listener` Union](SKILL.md#the-listener-union)); an entry is either `{ actionCreator, effect }` or `{ matcher, effect }`, never both, never neither.
 
 **Narrowing the payload.** `effect` receives `UnknownAction`. Read the payload only after the creator's own guard, which is the RTK way and needs no cast:
 
@@ -67,7 +67,7 @@ All listener arrays are registered centrally in `store/listener.ts`: `initAppLis
 },
 ```
 
-The example above destructures `{ dispatch, getState }` for brevity; a listener that calls more than two members of the api takes it whole as `api` and reads `api.dispatch`, `api.getState()`, `api.delay()`, `api.signal`, `api.cancelActiveListeners()`. `getState()` returns `RootState` — no cast.
+The example above destructures `{ dispatch, getState }` for brevity; a listener that calls more than two members of the api takes it whole as `api` and reads `api.dispatch`, `api.getState()`, `api.delay()`, `api.signal`, `api.cancelActiveListeners()`, `api.extra.router` (the app's router, for a redirect — see [building-ripe-routing → navigation.md](../building-ripe-routing/navigation.md#programmatic-navigation-from-listeners)). `getState()` returns `RootState` — no cast.
 
 ## Service Modules — Exempt from "All Logic in Listeners"
 
@@ -177,10 +177,10 @@ The `cancelActiveListeners + delay` debounce pattern is right for a narrow set o
 ```typescript
 {
 	actionCreator: setSearch,
-	effect: async (action, { cancelActiveListeners, delay }) => {
+	effect: async (action, { cancelActiveListeners, delay, extra }) => {
 		cancelActiveListeners();
 		await delay(150);
-		router.navigate({ search: `?q=${encodeURIComponent(action.payload.query)}` });
+		await extra.router.navigate({ search: `?q=${encodeURIComponent(action.payload.query)}` });
 	},
 },
 ```

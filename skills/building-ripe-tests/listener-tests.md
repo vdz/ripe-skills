@@ -6,6 +6,7 @@
 - Testing an optimistic-update flow (Pattern with rollback)
 - Testing a once-only hydration listener
 - Stubbing a service module (`window.mce`, `localStorage`)
+- Asserting that a listener navigated (or corrected the URL)
 - Debugging "my listener test poisons the next test"
 
 ## Contents
@@ -13,7 +14,7 @@
 - Why `vi.resetModules()` + dynamic import
 - Async patterns: `vi.waitFor` and `vi.advanceTimersByTimeAsync`
 - Service-module stubbing
-- `vi.mock` for the router module
+- Asserting a navigation
 - Asserting absence
 - Once-only guard tests
 - Pipeline tests crossing branches
@@ -160,29 +161,25 @@ beforeEach(() => {
 });
 ```
 
-## `vi.mock` for the Router Module
+## Asserting a Navigation
 
-When a listener imports `router` from `@/router/router` and calls `router.navigate(...)`, mock the module to capture the calls without actually navigating:
+A listener navigates with the router the store hands it (`extra.router` — see
+[building-ripe-routing → navigation.md](../building-ripe-routing/navigation.md#programmatic-navigation-from-listeners)),
+and the harness hands it a real memory router. Read where the router went:
 
 ```typescript
-const navigateMock = vi.fn();
-vi.mock('@/router/router', () => ({
-	router: { navigate: navigateMock },
-}));
-
 it('navigates to /summary after submitOrderSuccess', async () => {
-	const listener = await loadOrderListener();
-	const harness = makeTestHarness(listener);
+	const harness = makeTestHarness(orderListener);
 
 	harness.store.dispatch(submitOrderSuccess({ orderId: 'x' }));
 
-	await vi.waitFor(() => {
-		expect(navigateMock).toHaveBeenCalledWith('/summary');
-	});
+	await vi.waitFor(() => expect(harness.router.state.location.pathname).toBe('/summary'));
 });
 ```
 
-`vi.mock` is hoisted by Vitest, so it applies before the dynamic `import('../order.listener')` resolves the router import. The mock function itself can be `vi.fn()` from outside the factory.
+- **A correction replaced the entry, not pushed one** — `expect(harness.router.state.historyAction).toBe(NavigationType.Replace)`.
+- **A listener left the URL alone** — `vi.spyOn(harness.router, 'navigate')`, let the listener finish (see Asserting Absence below), then `expect(navigate).not.toHaveBeenCalled()`. The same spy counts a correction that must happen once.
+- **The test starts somewhere other than `/`** — pass your own: `makeTestHarness(listener, { router: createMemoryRouter([{ path: '*' }], { initialEntries: ['/devices/abc'] }) })`, and dispatch the matching `setLocation`.
 
 ## Asserting Absence
 

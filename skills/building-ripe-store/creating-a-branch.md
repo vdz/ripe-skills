@@ -264,7 +264,7 @@ Which test files the new branch ships with and what they must cover: [testing.md
 
 The branch isn't live until both the reducer and the listener are registered.
 
-**`store/store.ts`** — add to the exported `reducer` map. `RootState` is `StateFromReducersMapObject<typeof reducer>`, so it grows with the map; `makeStore(preloadedState?)` accepts the new branch in a snapshot from that moment on:
+**`store/store.ts`** — add to the exported `reducer` map. `RootState` is `StateFromReducersMapObject<typeof reducer>`, so it grows with the map; `makeStore`'s `preloadedState` accepts the new branch in a snapshot from that moment on:
 
 ```typescript
 import { productsReducer } from './products/products.reducer';
