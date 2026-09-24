@@ -3,6 +3,7 @@
 ## When to read this
 - Adding a network call, a platform call (camera, clipboard, storage, a native bridge, a permission prompt) or a background read
 - Deciding whether something belongs in `lib/modules/` or in `store/<branch>/api/`
+- Wiring a generated service client, and deciding whose types the state uses
 - Wrapping a piece of hardware that several checks share
 - Reading the environment (`config.ts`) — and where journey parameters live instead
 
@@ -10,6 +11,7 @@
 - The rule: every side effect is an api function, called only by a listener
 - The grep
 - Thin fronts over `lib/modules/`
+- The app's own types: a client's types stop at `api/`, the api function formats into the branch's
 - Hardware modules: keyed by id, with a generation counter
 - Honest results, not exceptions
 - `config.ts` — the one reader of `import.meta.env`
@@ -57,6 +59,89 @@ export { installWebviewHandler, resolveBootMode, readTransportParams } from "@/l
 ```
 
 Now the listener imports from its own `api/`, the grep rule holds, and the module can be swapped or mocked at one seam per branch. A pure codec in `lib/modules/` (the snapshot builder: state in, snapshot out, no I/O) is imported directly like any helper — the front is for the side-effecting surface only.
+
+## The App's Own Types
+
+**The branch's `types.ts` is the truth. A service client's types stop at the `api/` folder.** This is also where a thin front is not enough: a front may re-export a module's side-effecting surface, but a call that returns a service's data goes through an api function that formats the answer. When a branch reads through a generated client (a GraphQL or OpenAPI client package, an SDK), the client's types describe *the service's* answer. The state describes *the screens*. They often start out field-for-field identical, and that is exactly when the shortcut is tempting:
+
+```typescript
+// ❌ store/player/types.ts — the state is now the schema
+import type { GetTutorialResult } from "@acme/academy-api-client";
+export type Tutorial = NonNullable<GetTutorialResult["tutorial"]>;
+```
+
+Once the state is the schema, a renamed or split field in the service breaks every reducer, selector, component and test fixture that touches it. The rule:
+
+- `types.ts` declares every state type in the branch's own terms, with the names the screens use. The fields may match the schema one for one today; what matters is that the declaration is the branch's. A branch may still alias another branch's own type (`export type SearchResult = TutorialSummary`), because that type is the app's too.
+- A closed set of values is a const object with its union derived from it (see [state-shape.md](state-shape.md)), declared in `types.ts`. It is not the client's `enum`, even when the spellings match.
+- Only files under `api/` import the client's types. Reducers, listeners, selectors, components and `lib/utils` import the branch's types.
+- Each api function formats the client's response into the branch's types before returning. It does this even when the formatting copies every field unchanged. The formatter is where a schema change is absorbed, and the state keeps its shape.
+
+```typescript
+// store/player/types.ts — the branch's own terms
+/** Each Surface a Step acts on, spelled as the service sends it. */
+export const StepSurface = {
+	/** The screen, so the Step may have a Screen. */
+	Screen: "SCREEN",
+	/** The device itself: a button, a tray, a cable. */
+	Hardware: "HARDWARE",
+} as const;
+export type StepSurface = (typeof StepSurface)[keyof typeof StepSurface];
+
+export interface TutorialStep {
+	/** 1-based position in the Tutorial. */
+	stepNumber: number;
+	/** The Step's instruction, as shown. */
+	instructions: string;
+	/** Whether the Step acts on the screen or on the device. */
+	surface: StepSurface;
+	/** The Step's Screen; null for a Hardware step. */
+	screen: Screen | null;
+}
+
+// Screen and Tutorial are declared the same way.
+```
+
+```typescript
+// store/player/api/getTutorial.ts — the only file in the branch that imports the client
+import * as academy from "@acme/academy-api-client";
+import type { Screen, Tutorial, TutorialStep } from "../types";
+
+/** One Step's Screen as the client returns it. */
+type AcademyScreen = NonNullable<academy.TutorialStepFieldsFragment["screen"]>;
+
+/**
+ * One Tutorial in full, formatted into the player branch's own types, so a
+ * schema change is met here and the state keeps its shape.
+ */
+export async function getTutorial(id: string, locale: string): Promise<Tutorial | null> {
+	const response = await academy.getTutorial({ input: { id, locale } });
+	/* … check the status, unwrap … */
+	return response.tutorial ? toTutorial(response.tutorial) : null;
+}
+
+// ── HELPERS ─────────────────────────────────────────────────────
+
+/** One Step, in the player branch's terms; a Step with no Screen gets null. */
+function toStep(step: academy.TutorialStepFieldsFragment): TutorialStep {
+	return {
+		stepNumber: step.stepNumber,
+		instructions: step.instructions,
+		surface: step.surface, // the client's enum values match the union, so it assigns across
+		screen: step.screen ? toScreen(step.screen) : null,
+	};
+}
+
+// toTutorial and toScreen have the same shape: the client's type in, the branch's type out.
+```
+
+Details that matter in practice:
+
+- **Name the client's shapes locally.** A private `type AcademyScreen = NonNullable<…>` at the top of the api file keeps the formatter signatures readable and keeps those names out of `types.ts`.
+- **Enums.** When the client's enum values are spelled like the union's members, the value assigns straight across and the compiler checks it. When they differ, or the client can send values the app does not know, map them in the formatter with a `switch` or a lookup object. The formatter also decides what a value the app cannot place becomes: a declared fallback member, or a wider field that a selector narrows. It never becomes a cast.
+- **Copy collections.** `[...step.options]` and `.map(toX)`, never the client's array itself, so the state owns what it holds.
+- **Formatters are private to their api file.** Two api functions that read the same shape each keep their own formatter. Don't export a formatter from an api file for another one to import: a test that replaces that module with a `vi.mock` factory takes the formatter away from the other api function as well.
+- **Tests follow the seam.** Listener and component tests build fixtures typed as the branch's own types and replace the api function. Reducer tests use the same state-typed fixtures and replace nothing. Only the api function's own test builds client-shaped responses, because it replaces the client.
 
 ## Hardware Modules: Keyed by Id, With a Generation Counter
 

@@ -32,6 +32,15 @@ Components don't `dispatch(fetchX())` on mount. Listeners react to navigation, a
 **6. Derived selectors are memoised — but not every prop needs a named selector.**
 Any *named* selector that returns a new array, object, or computed structure on every call must be wrapped with `createSelector` from `@reduxjs/toolkit` (already bundled). Plain function selectors are right for direct slice reads, lookups by id, and primitive returns — they're naturally reference-stable. Components don't need a named selector for every prop read; inline `useAppSelector((s) => s.x.y)` is fine for one-off direct reads. Named selectors earn their place when they're branch-level useful, derived/computed, or carry semantic meaning. See [state-shape.md](state-shape.md#selectors-and-memoisation).
 
+**7. The app's own types are the truth; the api function formats the response into them.**
+Each branch's `types.ts` declares its state types in its own terms, shaped for the screens. It never aliases or re-exports a service client's types (`type Tutorial = GetTutorialResult["tutorial"]`), and no reducer, listener, selector or component imports them. Only the `api/` functions import the client's types, and each one formats its response into the branch's types. Write the formatter even when it copies every field unchanged: when the schema changes, the api function absorbs the change and the state keeps its shape.
+```typescript
+// ❌ store/player/types.ts
+export type { Tutorial } from "@acme/academy-api-client";
+// ✅ store/player/types.ts declares Tutorial; store/player/api/getTutorial.ts maps the client's answer into it
+```
+See [api.md → The App's Own Types](api.md#the-apps-own-types).
+
 ## The Feature Loop
 
 A full Ripe feature is one vertical slice, built in this order. If a spec or interview workflow preceded the task, the loop consumes its decisions — it does not re-open them (see [creating-a-branch.md → Step 0](creating-a-branch.md#step-0-state-composition-is-a-human-decision)).
@@ -67,7 +76,7 @@ store/
 	│   └── updateProduct.ts
 	├── __tests__/
 	│   └── products.reducer.test.ts
-	├── types.ts                  # State shape, payload, API interfaces — always this name
+	├── types.ts                  # State shape and payload interfaces, in the branch's own terms — always this name
 	├── products.actions.ts
 	├── products.reducer.ts
 	├── products.selectors.ts     # Optional, only if needed
@@ -115,6 +124,7 @@ Dev-only switches have one home, `lib/modules/mockJourney/` (`flags`, `mockDevic
 | Writing or naming a selector — inline vs named vs memoised | [selectors.md](selectors.md) |
 | Writing or modifying a listener (single, matcher, debounce, hydration, error handling, a hardware check's run) | [listeners.md](listeners.md) |
 | Adding a network or platform call — where it lives, who may call it, the grep rule | [api.md](api.md) |
+| Wiring a generated service client — whose types the state uses, where the formatting happens | [api.md → The App's Own Types](api.md#the-apps-own-types) |
 | Deciding which tests a new branch ships with | [testing.md](testing.md) |
 | Looking up the canonical scaffold for root files | [store-templates.md](../ripe-init/store-templates.md) |
 | Anything routing-related | `building-ripe-routing` skill |
@@ -284,6 +294,7 @@ Store Branch Progress:
 - [ ] Register listener array in listener.ts `listeners`
 - [ ] Verify: reducer `if`s guard data invariants only (e.g. member exists before delete/update) — no business decisions, no API calls
 - [ ] Verify: payloads arrive pre-formatted (match state shape)
+- [ ] Verify: service-client types are imported under `api/` only; `types.ts` declares its own (Cardinal Rule 7)
 - [ ] Verify: listeners handle all error cases
 - [ ] Verify: no useEffect in components fetching this branch's data
 - [ ] Verify: no `as` in the branch (narrow with `.match`, type predicates, typed factories)
@@ -301,7 +312,7 @@ Store Branch Progress:
 | [selectors.md](selectors.md) | Writing or naming a selector; deciding inline vs named vs memoised | Named-selector criteria, plain function vs `createSelector`, the memoisation test, React 19 / React Compiler, parametric selectors |
 | [action-payloads.md](action-payloads.md) | Adding actions, designing payloads, naming | Payload-as-interface rule, action naming, actions file template, common pitfalls |
 | [listeners.md](listeners.md) | Writing or modifying a listener | 13 patterns (single, matcher, predicate, debounce, preemptive hydration, two-listener intent chain, concurrency, concurrent-action guards, confirm window, one clock listener, liveness key, watchdog over unclocked time, release backstop), error handling, action chains, common mistakes |
-| [api.md](api.md) | Adding a network or platform call | The `store/<branch>/api/` rule, the grep, thin fronts over `lib/modules`, hardware modules keyed by id with a generation counter, `config.ts` as environment only |
+| [api.md](api.md) | Adding a network or platform call | The `store/<branch>/api/` rule, the grep, the app's own types (formatting a client's response), thin fronts over `lib/modules`, hardware modules keyed by id with a generation counter, `config.ts` as environment only |
 | [testing.md](testing.md) | Deciding which tests a new branch needs | The branch's test files, coverage expectations, pointers into `building-ripe-tests` |
 | [store-templates.md](../ripe-init/store-templates.md) | Looking up the canonical scaffold for root files | Initial files generated by `ripe-init`; canonical source for `LOADING_STATES` |
 | `building-ripe-routing` skill | Routing setup, the `setLocation` bridge, route-driven hydration | Separate skill — load it if the task touches routes or navigation |

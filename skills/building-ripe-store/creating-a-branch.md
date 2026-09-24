@@ -74,7 +74,7 @@ Tests always live in `__tests__/` — never alongside source files. Imports use 
 
 ## Step 2: `types.ts`
 
-State shape, domain types, and payload interfaces all live here. See [state-shape.md](state-shape.md) for design rules (dual structure, status values, defaults, projections).
+State shape, domain types, and payload interfaces all live here, in the branch's own terms, never a client's (see [api.md → The App's Own Types](api.md#the-apps-own-types)). See [state-shape.md](state-shape.md) for design rules (dual structure, status values, defaults, projections).
 
 ```typescript
 // store/products/types.ts
@@ -170,10 +170,12 @@ One file per API verb. Each file:
 - Calls the API
 - Validates the response
 - **Formats the response to match the state shape** (so the reducer can do straight assignment)
+- Is the only place in the branch that imports the client's types (`ProductEntity` below); everything else uses the branch's own `Product`
 
 ```typescript
 // store/products/api/fetchProducts.ts
 import { api } from '@/lib/modules/api';   // the deep client lives in lib/modules; this file is the branch's front
+import type { ProductEntity } from '@/lib/modules/api';   // the service's shape: imported here, and nowhere else in the branch
 import type { FetchProductsSuccessPayload, Product } from '../types';
 
 export async function fetchProducts(): Promise<FetchProductsSuccessPayload> {
@@ -206,7 +208,7 @@ function formatProducts(entities: ProductEntity[]): FetchProductsSuccessPayload 
 }
 ```
 
-The reducer never sees raw API shape. By the time `fetchProductsSuccess` reaches it, the payload is already in `items` / `byId` form.
+The reducer never sees raw API shape. By the time `fetchProductsSuccess` reaches it, the payload is already in `items` / `byId` form. When the service renames `displayName`, `formatProducts` changes and nothing else does.
 
 This folder is the **only** place the branch touches the outside world — network, storage, a device, a native bridge — and its only caller is the branch's listener. A component never imports from `api/`. The rule, the grep that checks it, and the shapes for shared hardware are in [api.md](api.md).
 

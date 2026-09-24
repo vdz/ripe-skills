@@ -133,6 +133,29 @@ Then, for each `api/` function, confirm its callers are listeners (`rg -n "from 
 
 ---
 
+## STORE-M-CLIENT-TYPES-AS-STATE — A service client's types used outside `api/`
+
+**Rule source:** building-ripe-store/SKILL.md cardinal rule #7; api.md → "The App's Own Types" (the branch's `types.ts` declares its own state types; only `api/` imports a client's types and formats the response into the branch's)
+**Severity:** M — nothing breaks at runtime today; the next schema change breaks every reducer, selector, component and fixture instead of one formatter.
+**Heuristics:**
+```
+# client packages imported outside api/ (adjust the package pattern to the app's clients)
+rg -n "from ['\"][^'\"]*(api-client|-sdk|/generated|graphql)[^'\"]*['\"]" src \
+  --glob '!src/store/*/api/**' --glob '!src/lib/modules/**'
+# state types aliased from response shapes
+rg -n "(Result|Response|Fragment|Query|Dto)\b" src/store --glob '**/types.ts'
+# an api function that returns the client's value without formatting it (matches a variable named `response`; READ the rest)
+rg -n 'return response(\.\w+)?( \?\? [^;]+)?;' src/store --glob '**/api/*.ts'
+```
+Then READ each hit. A `types.ts` that aliases, re-exports or `Pick`s a client type is a finding. So is a listener, selector, component or non-api test that imports one, and an api function that hands the client's object (or its array) back unformatted.
+**False positives:**
+- `lib/modules/**` holding the deep client that an `api/` file fronts.
+- A client that is not a service boundary: a UI library's prop types, a platform typing like `MediaStreamConstraints`.
+- A name that only matches the pattern: `export type SearchResult = TutorialSummary` aliases the app's own type, not a client's.
+**Fix template:** Declare the type in the branch's `types.ts` in its own terms (a const object + derived union for any closed set), add a private `toX(clientValue): X` formatter in the api file, and return its result. Retype the non-api test fixtures as the branch's types.
+
+---
+
 ## STORE-M-ENV-OUTSIDE-CONFIG — `import.meta.env` / `process.env` read outside `config.ts`
 
 **Rule source:** building-ripe-store/api.md → "`config.ts` — the one reader of `import.meta.env`"
@@ -181,6 +204,7 @@ rg -n 'as unknown as|as any' src
 ## OK — Sections to verify and report compliant
 
 - Every network/platform call lives in `store/<branch>/api/` and is called from a listener → "OK — api grep clean, N api modules, all callers listeners"
+- Service-client types imported under `store/*/api/` only; every state type declared in its branch's `types.ts` → "OK — client types stop at api/, N formatters"
 - `import.meta.env` read in `config.ts` only → "OK — one env reader"
 - No reducer case assigns `params` or a journey knob; no `resolve<X>Params()` anywhere → "OK — parameters declared in `initialState` only"
 - No `as` assertions in `src` → "OK — 0 casts (as const excepted)"
