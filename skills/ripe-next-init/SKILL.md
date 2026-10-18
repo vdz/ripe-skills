@@ -9,7 +9,7 @@ Read `ripe-architecture-docs/principles.md` first.
 
 ## Steps
 
-1. `npx create-next-app@latest --ts --eslint --app --src-dir --no-tailwind`. Cache Components is on by default from 16.4. Confirm that `next.config.ts` has `cacheComponents: true`.
+1. `npx create-next-app@latest --ts --eslint --app --src-dir --no-tailwind`. From 16.4, new `create-next-app` projects get Cache Components on by default. Confirm that `next.config.ts` has `cacheComponents: true`. An existing app is not switched on by upgrading: opt in by adding `cacheComponents: true` to `next.config.ts`.
 2. In `tsconfig.json`: `strict`, `noUncheckedIndexedAccess`.
 3. Create `src/env.ts`. It parses `process.env` with Zod and splits it in two: `serverEnv()` (imports `server-only`) and `publicEnv` (only `NEXT_PUBLIC_*`). Nothing else reads `process.env`.
 4. Create `src/proxy.ts` for session refresh and redirects only. Never put `middleware.ts` in a 16.x project. Authorization lives in `requireRole()`, not in proxy.
