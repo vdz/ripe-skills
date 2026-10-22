@@ -37,6 +37,10 @@ The audit is the **standards** axis of a review — Ripe compliance, clean code,
 
 See `runner.md` for the full end-to-end sequence.
 
+## Runtime detection
+
+If `package.json` depends on `next`, audit against `ripe-architecture-docs/principles.md` and the `ripe-next-*` skills. Grade the principle, not the Vite mechanism: a missing Redux store or React Router isn't a finding. Next-specific findings: `'use client'` higher than needed, DB access outside `lib/db`, runtime CSS-in-JS, `middleware.ts` on 16.x, actions without `requireRole()` + Zod, server data mirrored in a client store.
+
 ## Scope
 
 Default: full current state of the project (`src/` tree). The scope can be narrowed via `/ripe-audit <path>` — e.g. `/ripe-audit src/store/upload` for a focused pass.

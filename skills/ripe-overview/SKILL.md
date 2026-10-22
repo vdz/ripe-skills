@@ -21,6 +21,10 @@ Useful every time it runs, because the project moved.
 
 **Not** for: rule compliance (use `ripe-audit`), domain glossary (use `improve-codebase-architecture`), running notes in conversation (use `taking-notes`).
 
+## Runtime detection
+
+Check `package.json` first. If it depends on `next`, the project is a Ripe Next project: read `ripe-architecture-docs/principles.md` and judge it against the `ripe-next-*` skills, not the `building-ripe-*` ones. Server pages loading data, CSS Modules, and Server Actions are conformant there.
+
 ## How to run
 
 1. Read all sources per the **Signals** table below — cheaply (sizes, counts, mtimes, `git log` summaries; never full source files).
