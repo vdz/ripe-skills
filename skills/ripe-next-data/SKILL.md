@@ -20,7 +20,7 @@ The server owns the data. Client components never fetch it, and no client store 
     return parseTemplates(await query(type));
   }
   ```
-  Never cache per-viewer data that depends on cookies unless the viewer is part of the arguments.
+  Never cache per-viewer data. `cookies()`/`headers()` cannot be read inside `'use cache'`, and caching RLS-scoped rows (even keyed by viewer) bypasses RLS on cache hits. Stream per-viewer reads inside `<Suspense>` instead.
 
 ## Writes
 
